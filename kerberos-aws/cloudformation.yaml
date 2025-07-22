@@ -1,0 +1,733 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Kerberos Test Environment with Two AD Domains'
+
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 Key Pair for SSH/RDP access
+
+  AdminPassword:
+    Type: String
+    NoEcho: true
+    Description: Administrator password for Windows instances
+    MinLength: 8
+    AllowedPattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$'
+
+  UserPassword:
+    Type: String
+    NoEcho: true
+    Description: Password for domain users (user1, user2)
+    MinLength: 8
+    AllowedPattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$'
+    ConstraintDescription: Must contain uppercase, lowercase, number and special character
+
+  Owner:
+    Type: String
+    Default: anyone
+    Description: Owner tag for resource identification
+
+  Prefix:
+    Type: String
+    Default: anyprefix
+    Description: Prefix for all resource names
+    AllowedPattern: '^[a-zA-Z][a-zA-Z0-9]{0,9}$'
+    ConstraintDescription: Must be 1-10 characters, start with letter, alphanumeric only
+
+Mappings:
+  RegionMap:
+    ap-northeast-1:
+      # 最新のAMI IDは以下のコマンドで確認してください:
+      # aws ssm get-parameter --name /aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base --region ap-northeast-1
+      # aws ssm get-parameter --name /aws/service/ami-windows-latest/Windows_Server-2022-Japanese-Full-Base --region ap-northeast-1
+      # aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64 --region ap-northeast-1
+      WindowsAMI: '{{resolve:ssm:/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base}}'
+      WindowsAMIJP: '{{resolve:ssm:/aws/service/ami-windows-latest/Windows_Server-2022-Japanese-Full-Base}}'
+      LinuxAMI: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64}}'
+    us-east-1:
+      WindowsAMI: '{{resolve:ssm:/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base}}'
+      LinuxAMI: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64}}'
+    us-west-2:
+      WindowsAMI: '{{resolve:ssm:/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base}}'
+      LinuxAMI: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64}}'
+
+Resources:
+  # ==========================================
+  # VPC and Network Configuration
+  # ==========================================
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}KerberosTestVPC'
+        - Key: Owner
+          Value: !Ref Owner
+
+  # Subnets
+  ClientSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.10.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}CLIENT-Subnet'
+        - Key: Owner
+          Value: !Ref Owner
+
+  ServiceSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.20.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}SERVICE-Subnet'
+        - Key: Owner
+          Value: !Ref Owner
+
+  AppSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.30.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}APP-Subnet'
+        - Key: Owner
+          Value: !Ref Owner
+
+  # Additional subnet for ALB (must be in different AZ)
+  AppSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.40.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}APP-Subnet2'
+        - Key: Owner
+          Value: !Ref Owner
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}KerberosIGW'
+        - Key: Owner
+          Value: !Ref Owner
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Route Tables
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}PublicRouteTable'
+        - Key: Owner
+          Value: !Ref Owner
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  ClientSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref ClientSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  ServiceSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref ServiceSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  AppSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AppSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  AppSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AppSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # ==========================================
+  # Security Groups
+  # ==========================================
+  DomainControllerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${Prefix}DomainControllerSG'
+      GroupDescription: Security group for Domain Controllers
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # RDP
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0
+        # WinRM HTTP
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: 0.0.0.0/0
+        # WinRM HTTPS
+        - IpProtocol: tcp
+          FromPort: 5986
+          ToPort: 5986
+          CidrIp: 0.0.0.0/0
+        # AD/LDAP
+        - IpProtocol: tcp
+          FromPort: 389
+          ToPort: 389
+          CidrIp: 10.0.0.0/16
+        - IpProtocol: udp
+          FromPort: 389
+          ToPort: 389
+          CidrIp: 10.0.0.0/16
+        # LDAPS
+        - IpProtocol: tcp
+          FromPort: 636
+          ToPort: 636
+          CidrIp: 10.0.0.0/16
+        # Kerberos
+        - IpProtocol: tcp
+          FromPort: 88
+          ToPort: 88
+          CidrIp: 10.0.0.0/16
+        - IpProtocol: udp
+          FromPort: 88
+          ToPort: 88
+          CidrIp: 10.0.0.0/16
+        # DNS
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 10.0.0.0/16
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 10.0.0.0/16
+        # SMB
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: 10.0.0.0/16
+        # RPC
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: 10.0.0.0/16
+        # ICMP (Ping)
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/16
+        # RPC Endpoint Mapper (必須)
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: 10.0.0.0/16
+        # RPC Dynamic Ports (AD通信に必須)
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: 10.0.0.0/16
+        # NetBIOS Name Service
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: 10.0.0.0/16
+        # NetBIOS Datagram Service
+        - IpProtocol: udp
+          FromPort: 138
+          ToPort: 138
+          CidrIp: 10.0.0.0/16
+        # NetBIOS Session Service
+        - IpProtocol: tcp
+          FromPort: 139
+          ToPort: 139
+          CidrIp: 10.0.0.0/16
+        # Global Catalog
+        - IpProtocol: tcp
+          FromPort: 3268
+          ToPort: 3269
+          CidrIp: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}DomainControllerSG'
+        - Key: Owner
+          Value: !Ref Owner
+
+  WindowsClientSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${Prefix}WindowsClientSG'
+      GroupDescription: Security group for Windows Clients
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # RDP
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0
+        # WinRM HTTP
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: 0.0.0.0/0
+        # WinRM HTTPS
+        - IpProtocol: tcp
+          FromPort: 5986
+          ToPort: 5986
+          CidrIp: 0.0.0.0/0
+        # DC通信
+        - IpProtocol: -1
+          SourceSecurityGroupId: !Ref DomainControllerSG
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}WindowsClientSG'
+        - Key: Owner
+          Value: !Ref Owner
+
+  # Security Group for ALB
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${Prefix}ALBSecurityGroup'
+      GroupDescription: Security group for Application Load Balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # HTTP
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        # HTTPS
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}ALB-SG'
+        - Key: Owner
+          Value: !Ref Owner
+
+# ==========================================
+  # EC2 Instances
+  # ==========================================
+
+  # DC1 - DOMAIN1.LAB Domain Controller
+  DC1Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', WindowsAMI]
+      InstanceType: t3.medium
+      KeyName: !Ref KeyName
+      SubnetId: !Ref ClientSubnet
+      SecurityGroupIds:
+        - !Ref DomainControllerSG
+      PrivateIpAddress: 10.0.10.10
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}DC1-DOMAIN1.LAB'
+        - Key: Owner
+          Value: !Ref Owner
+      UserData:
+        Fn::Base64: !Sub |
+          <script>
+          echo "UserData execution started at %date% %time%" > C:\UserData-execution.log 2>&1
+
+          rem Set Administrator password
+          echo "Setting Administrator password..." >> C:\UserData-execution.log 2>&1
+          net user Administrator "${AdminPassword}" >> C:\UserData-execution.log 2>&1
+          net user Administrator /active:yes >> C:\UserData-execution.log 2>&1
+          echo "Password set successfully" >> C:\UserData-execution.log 2>&1
+
+          rem Rename computer
+          echo "Renaming computer to DC1..." >> C:\UserData-execution.log 2>&1
+          wmic computersystem where name="%COMPUTERNAME%" call rename name="DC1" >> C:\UserData-execution.log 2>&1
+          echo "Computer renamed" >> C:\UserData-execution.log 2>&1
+
+
+
+
+          rem Configure WinRM for Ansible
+          echo "Configuring WinRM for Ansible..." >> C:\UserData-execution.log 2>&1
+          powershell -Command "Enable-PSRemoting -Force" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-WSManQuickConfig -Force" >> C:\UserData-execution.log 2>&1
+          echo "Basic WinRM setup completed" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true" >> C:\UserData-execution.log 2>&1
+          echo "Basic auth enabled" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true" >> C:\UserData-execution.log 2>&1
+          echo "Unencrypted allowed" >> C:\UserData-execution.log 2>&1
+          powershell -Command "New-NetFirewallRule -DisplayName 'WinRM HTTP' -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow" >> C:\UserData-execution.log 2>&1
+          echo "HTTP firewall rule added" >> C:\UserData-execution.log 2>&1
+          powershell -Command "New-NetFirewallRule -DisplayName 'WinRM HTTPS' -Direction Inbound -Protocol TCP -LocalPort 5986 -Action Allow" >> C:\UserData-execution.log 2>&1
+          echo "HTTPS firewall rule added" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Restart-Service WinRM" >> C:\UserData-execution.log 2>&1
+          echo "WinRM service restarted" >> C:\UserData-execution.log 2>&1
+          echo "WinRM configuration completed" >> C:\UserData-execution.log 2>&1
+
+          echo "UserData execution completed at %date% %time%" >> C:\UserData-execution.log 2>&1
+          echo "Initiating reboot..." >> C:\UserData-execution.log 2>&1
+          shutdown.exe /r /t 30 /f
+          </script>
+
+  # DC2 - DOMAIN2.LAB Domain Controller
+  DC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', WindowsAMI]
+      InstanceType: t3.medium
+      KeyName: !Ref KeyName
+      SubnetId: !Ref ServiceSubnet
+      SecurityGroupIds:
+        - !Ref DomainControllerSG
+      PrivateIpAddress: 10.0.20.10
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}DC2-DOMAIN2.LAB'
+        - Key: Owner
+          Value: !Ref Owner
+      UserData:
+        Fn::Base64: !Sub |
+          <script>
+          echo "DC2 UserData execution started at %date% %time%" > C:\UserData-execution.log 2>&1
+
+          rem Set Administrator password
+          echo "Setting Administrator password..." >> C:\UserData-execution.log 2>&1
+          net user Administrator "${AdminPassword}" >> C:\UserData-execution.log 2>&1
+          net user Administrator /active:yes >> C:\UserData-execution.log 2>&1
+          echo "Password set successfully" >> C:\UserData-execution.log 2>&1
+
+          rem Rename computer
+          echo "Renaming computer to DC2..." >> C:\UserData-execution.log 2>&1
+          wmic computersystem where name="%COMPUTERNAME%" call rename name="DC2" >> C:\UserData-execution.log 2>&1
+          echo "Computer renamed" >> C:\UserData-execution.log 2>&1
+
+
+
+
+          rem Configure WinRM for Ansible
+          echo "Configuring WinRM for Ansible..." >> C:\UserData-execution.log 2>&1
+          powershell -Command "Enable-PSRemoting -Force" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-WSManQuickConfig -Force" >> C:\UserData-execution.log 2>&1
+          echo "Basic WinRM setup completed" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true" >> C:\UserData-execution.log 2>&1
+          echo "Basic auth enabled" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true" >> C:\UserData-execution.log 2>&1
+          echo "Unencrypted allowed" >> C:\UserData-execution.log 2>&1
+          powershell -Command "New-NetFirewallRule -DisplayName 'WinRM HTTP' -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow" >> C:\UserData-execution.log 2>&1
+          echo "HTTP firewall rule added" >> C:\UserData-execution.log 2>&1
+          powershell -Command "New-NetFirewallRule -DisplayName 'WinRM HTTPS' -Direction Inbound -Protocol TCP -LocalPort 5986 -Action Allow" >> C:\UserData-execution.log 2>&1
+          echo "HTTPS firewall rule added" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Restart-Service WinRM" >> C:\UserData-execution.log 2>&1
+          echo "WinRM service restarted" >> C:\UserData-execution.log 2>&1
+          echo "WinRM configuration completed" >> C:\UserData-execution.log 2>&1
+
+          echo "DC2 UserData execution completed at %date% %time%" >> C:\UserData-execution.log 2>&1
+          echo "Initiating reboot..." >> C:\UserData-execution.log 2>&1
+          shutdown.exe /r /t 30 /f
+          </script>
+
+
+  # WIN1 - Windows Client for DOMAIN1.LAB
+  WIN1Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: DC1Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', WindowsAMIJP]
+      InstanceType: t3.small
+      KeyName: !Ref KeyName
+      SubnetId: !Ref ClientSubnet
+      SecurityGroupIds:
+        - !Ref WindowsClientSG
+      PrivateIpAddress: 10.0.10.100
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}WIN1-DOMAIN1'
+        - Key: Owner
+          Value: !Ref Owner
+      UserData:
+        Fn::Base64: !Sub |
+          <script>
+          rem Set Administrator password
+          net user Administrator "${AdminPassword}"
+          net user Administrator /active:yes
+
+          rem Rename computer to WIN1
+          wmic computersystem where name="%COMPUTERNAME%" call rename name="WIN1"
+
+          rem Configure WinRM for Ansible
+          echo "Configuring WinRM for Ansible..." >> C:\UserData-execution.log 2>&1
+          powershell -Command "Enable-PSRemoting -Force" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-WSManQuickConfig -Force" >> C:\UserData-execution.log 2>&1
+          echo "Basic WinRM setup completed" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true" >> C:\UserData-execution.log 2>&1
+          echo "Basic auth enabled" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true" >> C:\UserData-execution.log 2>&1
+          echo "Unencrypted allowed" >> C:\UserData-execution.log 2>&1
+          powershell -Command "New-NetFirewallRule -DisplayName 'WinRM HTTP' -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow" >> C:\UserData-execution.log 2>&1
+          echo "HTTP firewall rule added" >> C:\UserData-execution.log 2>&1
+          powershell -Command "New-NetFirewallRule -DisplayName 'WinRM HTTPS' -Direction Inbound -Protocol TCP -LocalPort 5986 -Action Allow" >> C:\UserData-execution.log 2>&1
+          echo "HTTPS firewall rule added" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Restart-Service WinRM" >> C:\UserData-execution.log 2>&1
+          echo "WinRM service restarted" >> C:\UserData-execution.log 2>&1
+          echo "WinRM configuration completed" >> C:\UserData-execution.log 2>&1
+
+          rem Reboot to apply changes
+          shutdown.exe /r /t 30 /f
+          </script>
+
+  # WIN2 - Windows Client for DOMAIN2.LAB
+  WIN2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: DC2Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', WindowsAMI]
+      InstanceType: t3.small
+      KeyName: !Ref KeyName
+      SubnetId: !Ref ServiceSubnet
+      SecurityGroupIds:
+        - !Ref WindowsClientSG
+      PrivateIpAddress: 10.0.20.100
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}WIN2-DOMAIN2'
+        - Key: Owner
+          Value: !Ref Owner
+      UserData:
+        Fn::Base64: !Sub |
+          <script>
+          rem Set Administrator password
+          net user Administrator "${AdminPassword}"
+          net user Administrator /active:yes
+
+          rem Rename computer to WIN2
+          wmic computersystem where name="%COMPUTERNAME%" call rename name="WIN2"
+
+          rem Configure WinRM for Ansible
+          echo "Configuring WinRM for Ansible..." >> C:\UserData-execution.log 2>&1
+          powershell -Command "Enable-PSRemoting -Force" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-WSManQuickConfig -Force" >> C:\UserData-execution.log 2>&1
+          echo "Basic WinRM setup completed" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true" >> C:\UserData-execution.log 2>&1
+          echo "Basic auth enabled" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true" >> C:\UserData-execution.log 2>&1
+          echo "Unencrypted allowed" >> C:\UserData-execution.log 2>&1
+          powershell -Command "New-NetFirewallRule -DisplayName 'WinRM HTTP' -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow" >> C:\UserData-execution.log 2>&1
+          echo "HTTP firewall rule added" >> C:\UserData-execution.log 2>&1
+          powershell -Command "New-NetFirewallRule -DisplayName 'WinRM HTTPS' -Direction Inbound -Protocol TCP -LocalPort 5986 -Action Allow" >> C:\UserData-execution.log 2>&1
+          echo "HTTPS firewall rule added" >> C:\UserData-execution.log 2>&1
+          powershell -Command "Restart-Service WinRM" >> C:\UserData-execution.log 2>&1
+          echo "WinRM service restarted" >> C:\UserData-execution.log 2>&1
+          echo "WinRM configuration completed" >> C:\UserData-execution.log 2>&1
+
+          rem Reboot to apply changes
+          shutdown.exe /r /t 30 /f
+          </script>
+
+  # Linux Application Server
+  LinuxAppInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', LinuxAMI]
+      InstanceType: t3.small
+      KeyName: !Ref KeyName
+      SubnetId: !Ref AppSubnet
+      SecurityGroupIds:
+        - !Ref LinuxAppSG
+      PrivateIpAddress: 10.0.30.10
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}Linux-App'
+        - Key: Owner
+          Value: !Ref Owner
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Set root password
+          echo "root:${AdminPassword}" | chpasswd
+          
+          # Set hostname
+          hostnamectl set-hostname winauth.app.local
+          
+          # Update system
+          dnf update -y
+
+  # Security Group for Linux Application Server
+  LinuxAppSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Linux application server
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # SSH
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        # HTTP from ALB only
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+        # Spring Boot port from ALB only (for direct API access if needed)
+        - IpProtocol: tcp
+          FromPort: 8082
+          ToPort: 8082
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+        # Internal VPC communication
+        - IpProtocol: -1
+          CidrIp: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}-LinuxApp-SG'
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ==========================================
+  # Application Load Balancer
+  # ==========================================
+
+
+
+  # Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${Prefix}-winauth-alb'
+      Type: application
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets:
+        - !Ref AppSubnet
+        - !Ref AppSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub '${Prefix}-winauth-alb'
+        - Key: Owner
+          Value: !Ref Owner
+
+
+
+  # HTTPS Listener will be configured after deployment via Ansible with SSL certificate
+  # HTTPSListener:
+  #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   Properties:
+  #     DefaultActions:
+  #       - Type: forward
+  #         TargetGroupArn: !Ref NginxTargetGroup
+  #     LoadBalancerArn: !Ref ApplicationLoadBalancer
+  #     Port: 443
+  #     Protocol: HTTPS
+  #     Certificates:
+  #       - CertificateArn: !Ref SSLCertificate
+
+Outputs:
+  DC1PublicIP:
+    Description: Public IP of DC1 (DOMAIN1.LAB)
+    Value: !GetAtt DC1Instance.PublicIp
+
+  DC2PublicIP:
+    Description: Public IP of DC2 (DOMAIN2.LAB)
+    Value: !GetAtt DC2Instance.PublicIp
+
+  WIN1PublicIP:
+    Description: Public IP of WIN1 Client (DOMAIN1.LAB)
+    Value: !GetAtt WIN1Instance.PublicIp
+
+  WIN2PublicIP:
+    Description: Public IP of WIN2 Client (DOMAIN2.LAB)
+    Value: !GetAtt WIN2Instance.PublicIp
+
+  LinuxAppPublicIP:
+    Description: Public IP of Linux Application Server
+    Value: !GetAtt LinuxAppInstance.PublicIp
+
+  LinuxAppPrivateIP:
+    Description: Private IP of Linux Application Server
+    Value: !GetAtt LinuxAppInstance.PrivateIp
+
+  DC1InstanceId:
+    Description: Instance ID of DC1 (DOMAIN1.LAB)
+    Value: !Ref DC1Instance
+
+  DC2InstanceId:
+    Description: Instance ID of DC2 (DOMAIN2.LAB)
+    Value: !Ref DC2Instance
+
+  VPCId:
+    Description: VPC ID for Linux Application deployment
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${Prefix}-VPC-ID"
+
+  AppSubnetId:
+    Description: Application Subnet ID for Linux Application deployment  
+    Value: !Ref AppSubnet
+    Export:
+      Name: !Sub "${Prefix}-AppSubnet-ID"
+
+  AdminPassword:
+    Description: Use the password you provided for Administrator access
+    Value: "Use the AdminPassword parameter value for RDP access"
+
+  # ALB Outputs
+  ALBDNSName:
+    Description: DNS name of the Application Load Balancer
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub "${Prefix}-ALB-DNSName"
+
+  ALBArn:
+    Description: ARN of the Application Load Balancer
+    Value: !Ref ApplicationLoadBalancer
+    Export:
+      Name: !Sub "${Prefix}-ALB-Arn"
+
+
+
+  # HTTPSListenerArn will be added when HTTPS is configured
+  # HTTPSListenerArn:
+  #   Description: ARN of the HTTPS listener
+  #   Value: !Ref HTTPSListener
+  #   Export:
+  #     Name: !Sub "${Prefix}-HTTPSListener-Arn"
+
+  AppSubnet2Id:
+    Description: App Subnet 2 ID for ALB deployment
+    Value: !Ref AppSubnet2
+    Export:
+      Name: !Sub "${Prefix}-AppSubnet2-ID"

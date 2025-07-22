@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: winauth-server
+  namespace: winauth
+  labels:
+    app: winauth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: winauth
+  template:
+    metadata:
+      labels:
+        app: winauth
+    spec:
+      serviceAccountName: winauth-sa
+      
+      # DNS設定（AD Domain Controllerの解決用）
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - "10.0.0.10"  # AD DNS Server IP
+          - "8.8.8.8"    # フォールバック
+        searches:
+          - domain.com
+          - svc.cluster.local
+          - cluster.local
+      
+      initContainers:
+      # 時刻同期チェック
+      - name: time-sync-check
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+          - |
+            echo "Checking time sync with AD server..."
+            # ntpdateがない場合は、別の方法で時刻確認
+            echo "Current time: $(date)"
+      
+      containers:
+      - name: winauth
+        image: winauth:latest
+        imagePullPolicy: Always
+        
+        ports:
+        - containerPort: 8082
+          name: http
+          protocol: TCP
+        
+        env:
+        # Spring Boot プロファイル
+        - name: SPRING_PROFILES_ACTIVE
+          value: "kerberos"
+        
+        # JVM Kerberos設定
+        - name: JAVA_OPTS
+          value: >-
+            -Djava.security.krb5.conf=/etc/krb5/krb5.conf
+            -Djava.security.krb5.realm=DOMAIN.COM
+            -Djava.security.krb5.kdc=dc.domain.com
+            -Dsun.security.krb5.debug=true
+            -Djavax.security.auth.useSubjectCredsOnly=false
+        
+        # Kerberos設定パス
+        - name: KRB5_CONFIG
+          value: "/etc/krb5/krb5.conf"
+        
+        # アプリケーション設定
+        - name: KERBEROS_PRINCIPAL
+          value: "HTTP/winauth-service.winauth.svc.cluster.local@DOMAIN.COM"
+        - name: KERBEROS_KEYTAB
+          value: "/etc/krb5/krb5.keytab"
+        - name: AD_DOMAIN
+          value: "DOMAIN.COM"
+        - name: AD_URL
+          value: "ldap://dc.domain.com:389"
+        
+        volumeMounts:
+        # Kerberos設定
+        - name: krb5-config
+          mountPath: /etc/krb5
+          readOnly: true
+        
+        # Keytabファイル
+        - name: kerberos-keytab
+          mountPath: /etc/krb5/krb5.keytab
+          subPath: krb5.keytab
+          readOnly: true
+        
+        # アプリケーション設定
+        - name: app-config
+          mountPath: /config
+          readOnly: true
+        
+        # Kerberos チケットキャッシュ用（書き込み可能）
+        - name: krb5-cache
+          mountPath: /tmp/krb5cc
+        
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8082
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8082
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      
+      volumes:
+      # ConfigMapからKerberos設定をマウント
+      - name: krb5-config
+        configMap:
+          name: krb5-config
+          items:
+          - key: krb5.conf
+            path: krb5.conf
+      
+      # SecretからKeytabをマウント
+      - name: kerberos-keytab
+        secret:
+          secretName: kerberos-keytab
+          defaultMode: 0400  # 読み取り専用、rootのみ
+      
+      # アプリケーション設定
+      - name: app-config
+        configMap:
+          name: app-config
+      
+      # Kerberosチケットキャッシュ用の一時ディレクトリ
+      - name: krb5-cache
+        emptyDir: {}
+      
+      # Pod配置設定
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - winauth
+              topologyKey: kubernetes.io/hostname

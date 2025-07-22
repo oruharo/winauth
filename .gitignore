@@ -1,0 +1,99 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+.settings/
+.project
+.classpath
+.factorypath
+.springBeans
+.sts4-cache/
+
+# Java / Maven
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+*.jar
+*.war
+*.ear
+*.class
+
+# Node.js / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+dist/
+dist-ssr/
+*.local
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Security sensitive files
+*.keytab
+krb5.conf
+*.p12
+*.jks
+*.keystore
+*.truststore
+
+# SSL certificates
+*.crt
+*.key
+*.pem
+*.cert
+*.ca-bundle
+
+# Application specific
+*.bak
+*.tmp
+*.temp
+server.log
+application.log
+
+# Compiled output
+build/
+out/
+
+# MCP server generated files
+.serena/memories/
+
+# Claude Code settings (local)
+.claude/settings.local.json
+
+# Temporary files
+temp.zip
+*.zip.tmp

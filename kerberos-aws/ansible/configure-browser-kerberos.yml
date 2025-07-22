@@ -1,0 +1,150 @@
+---
+- name: Configure Browser Settings for Kerberos Authentication
+  hosts: windows_clients
+  gather_facts: yes
+
+
+  vars:
+    alb_wildcard: "*.elb.amazonaws.com"
+
+  tasks:
+    - name: Get ALB DNS name from CloudFormation (dynamic)
+      delegate_to: localhost
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ lookup('env', 'STACK_NAME') | default('has-kerberos-test-9606') }}"
+      register: stack_info
+      run_once: true
+
+    - name: Set ALB DNS name fact
+      set_fact:
+        alb_dns_name: "{{ stack_info.cloudformation[lookup('env', 'STACK_NAME') | default('has-kerberos-test-9606')].stack_outputs.ALBDNSName }}"
+      run_once: true
+
+    - name: Add ALB to Local Intranet Zone (Registry) - Full domain
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\amazonaws.com\elb\{{ alb_dns_name.split(".")[0] }}'
+        name: https
+        data: 1
+        type: dword
+
+    - name: Add wildcard ALB pattern to Local Intranet Zone
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\amazonaws.com\elb'
+        name: https
+        data: 1
+        type: dword
+
+    - name: Add full ALB DNS name to Intranet Zone as exact site
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\{{ alb_dns_name }}'
+        name: https
+        data: 1
+        type: dword
+
+    - name: Add ALB DNS name without protocol to Intranet Zone
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\{{ alb_dns_name }}'
+        name: '*'
+        data: 1
+        type: dword
+
+    - name: Add wildcard amazonaws.com to Intranet Zone
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\amazonaws.com'
+        name: https
+        data: 1
+        type: dword
+
+    - name: Enable automatic logon for Intranet zone
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\1'
+        name: '1A00'
+        data: 0
+        type: dword
+
+    - name: Disable prompt for username/password in Intranet zone
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\1'
+        name: '1A10'
+        data: 0
+        type: dword
+
+    - name: Enable Windows Integrated Authentication in Internet Explorer
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings'
+        name: 'EnableIntegratedWindowsAuth'
+        data: 1
+        type: dword
+
+    - name: Enable automatic detection of intranet network
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap'
+        name: 'AutoDetect'
+        data: 1
+        type: dword
+
+    - name: Include all local (intranet) sites not listed in other zones
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap'
+        name: 'IntranetName'
+        data: 1
+        type: dword
+
+    - name: Include all sites that bypass the proxy server
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap'
+        name: 'ProxyBypass'
+        data: 1
+        type: dword
+
+    - name: Include all network paths (UNCs)
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap'
+        name: 'UNCAsIntranet'
+        data: 1
+        type: dword
+
+    - name: Enable integrated Windows authentication for Edge
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Policies\Microsoft\Edge'
+        name: AuthNegotiateDelegateAllowlist
+        data: "{{ alb_dns_name }}"
+        type: string
+
+    - name: Enable Windows authentication for Edge servers list
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Policies\Microsoft\Edge'
+        name: AuthServerAllowlist
+        data: "{{ alb_dns_name }}"
+        type: string
+
+    # Removed: ALB should be resolved by public DNS, not hosts file
+    # The following task was causing issues with ALB access from Windows clients
+    # - name: Add ALB to hosts file for name resolution
+    #   win_lineinfile:
+    #     path: C:\Windows\System32\drivers\etc\hosts
+    #     line: "{{ hostvars['linux-app']['ansible_host'] | default('10.0.30.10') }} {{ alb_dns_name }}"
+    #     create: yes
+
+    - name: Remove incorrect ALB entry from hosts file if exists
+      win_lineinfile:
+        path: C:\Windows\System32\drivers\etc\hosts
+        regexp: '.*{{ alb_dns_name }}.*'
+        state: absent
+
+    - name: Restart Internet Explorer processes
+      win_shell: |
+        Get-Process iexplore -ErrorAction SilentlyContinue | Stop-Process -Force
+        Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force
+      ignore_errors: yes
+
+    - name: Display browser configuration summary
+      debug:
+        msg:
+          - "Browser configuration completed for Kerberos authentication"
+          - "ALB DNS: {{ alb_dns_name }}"
+          - "Zone: Local Intranet (automatic Windows authentication)"
+          - "Next steps:"
+          - "1. Open Microsoft Edge"
+          - "2. Navigate to https://{{ alb_dns_name }}"
+          - "3. Kerberos authentication should work automatically"

@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: winauth-service
+  namespace: winauth
+  labels:
+    app: winauth
+spec:
+  type: ClusterIP
+  selector:
+    app: winauth
+  ports:
+  - port: 8082
+    targetPort: 8082
+    protocol: TCP
+    name: http
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3時間
+
+---
+# Ingress経由で外部公開する場合
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: winauth-ingress
+  namespace: winauth
+  annotations:
+    # NGINX Ingress設定
+    nginx.ingress.kubernetes.io/auth-type: "negotiate"
+    nginx.ingress.kubernetes.io/auth-url: "http://winauth-service.winauth.svc.cluster.local:8082/api/auth"
+    nginx.ingress.kubernetes.io/auth-snippet: |
+      proxy_set_header Authorization $http_authorization;
+      proxy_pass_header Authorization;
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "WWW-Authenticate: Negotiate";
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "8"
+    
+    # CORS設定
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization,Content-Type,Accept,Origin,User-Agent,Cache-Control"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: winauth.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: winauth-service
+            port:
+              number: 8082
+  tls:
+  - hosts:
+    - winauth.example.com
+    secretName: winauth-tls

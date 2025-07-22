@@ -1,0 +1,174 @@
+---
+- name: Setup Domain Controllers
+  hosts: domain_controllers
+  gather_facts: yes
+
+  tasks:
+    - name: Set stack name variable
+      set_fact:
+        stack_name: "{{ lookup('env', 'STACK_NAME') | default('has-kerberos-test-9606') }}"
+      run_once: true
+
+    - name: Get ALB DNS name from CloudFormation
+      delegate_to: localhost
+      become: no
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ stack_name }}"
+      register: stack_info
+      run_once: true
+      when: inventory_hostname == 'dc1'
+
+    - name: Set ALB DNS name fact
+      set_fact:
+        alb_dns_name: "{{ stack_info.cloudformation[stack_name].stack_outputs.ALBDNSName }}"
+      when: inventory_hostname == 'dc1' and stack_info is defined
+
+    - name: Reboot if required before domain setup
+      win_reboot:
+        reboot_timeout: 300
+        msg: "Reboot for pending changes"
+      when: ansible_facts.reboot_pending | default(false)
+
+    - name: Install AD DS feature
+      win_feature:
+        name: AD-Domain-Services
+        state: present
+        include_management_tools: true
+
+    - name: Install DNS feature
+      win_feature:
+        name: DNS
+        state: present
+        include_management_tools: true
+
+    - name: Setup Primary Domain Controller (DC1)
+      microsoft.ad.domain:
+        dns_domain_name: "{{ domain_name }}"
+        safe_mode_password: "{{ admin_password }}"
+        create_dns_delegation: false
+        install_dns: true
+      when: inventory_hostname == 'dc1'
+
+      ignore_errors: yes
+      register: dc1_domain_result
+
+    - name: Setup Secondary Domain Controller (DC2)
+      microsoft.ad.domain:
+        dns_domain_name: "{{ domain_name }}"
+        safe_mode_password: "{{ admin_password }}"
+        create_dns_delegation: false
+        install_dns: true
+      when: inventory_hostname == 'dc2'
+      ignore_errors: yes
+      register: dc2_domain_result
+      
+    - name: Reboot after domain setup
+      win_reboot:
+        reboot_timeout: 600
+      when: (dc1_domain_result.changed | default(false)) or (dc2_domain_result.changed | default(false))
+      register: dc_reboot_result
+
+    - name: Wait for domain controller to be ready
+      pause:
+        seconds: 120
+      when: dc_reboot_result.changed | default(false)
+        
+    - name: Create domain users for DC1
+      microsoft.ad.user:
+        name: "user1"
+        password: "{{ user_password }}"
+        state: present
+        password_expired: false
+        password_never_expires: true
+      when: inventory_hostname == 'dc1'
+
+    - name: Create domain users for DC2
+      microsoft.ad.user:
+        name: "user2"
+        password: "{{ user_password }}"
+        state: present
+        password_expired: false
+        password_never_expires: true
+      when: inventory_hostname == 'dc2'
+      
+    - name: Create service account for Kerberos
+      microsoft.ad.user:
+        name: svcapp
+        password: "{{ service_password | default('DefaultServicePass123!') }}"
+        state: present
+        password_expired: false
+        password_never_expires: true
+      when: inventory_hostname == 'dc1'
+
+    - name: Create keytab for service account (local hostname)
+      win_shell: |
+        ktpass -princ HTTP/winauth.app.local@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass {{ service_password | default('DefaultServicePass123!') }} -out C:\svcapp.keytab
+      when: inventory_hostname == 'dc1'
+
+    - name: Create keytab for service account (FQDN hostname)
+      win_shell: |
+        ktpass -princ HTTP/{{ ansible_hostname }}.{{ ansible_domain }}@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass {{ service_password | default('DefaultServicePass123!') }} -out C:\svcapp-fqdn.keytab
+      when: inventory_hostname == 'dc1'
+
+    - name: Register SPN for ALB DNS
+      win_shell: |
+        setspn -A HTTP/{{ alb_dns_name }} svcapp
+      when: inventory_hostname == 'dc1' and alb_dns_name is defined
+      register: spn_result
+      changed_when: spn_result.stdout is not search('Duplicate SPN found')
+      failed_when: false
+
+    - name: Create combined keytab for ALB DNS (AES256 + RC4)
+      win_shell: |
+        ktpass -princ HTTP/{{ alb_dns_name }}@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass {{ service_password | default('DefaultServicePass123!') }} -out C:\winauth-combined.keytab
+        ktpass -princ HTTP/{{ alb_dns_name }}@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto RC4-HMAC-NT -ptype KRB5_NT_PRINCIPAL -pass {{ service_password | default('DefaultServicePass123!') }} -in C:\winauth-combined.keytab -out C:\winauth-combined.keytab
+      when: inventory_hostname == 'dc1' and alb_dns_name is defined
+
+    - name: Download keytab files
+      fetch:
+        src: "{{ item }}"
+        dest: ./keytabs/
+        flat: yes
+      loop:
+        - C:\svcapp.keytab
+        - C:\svcapp-fqdn.keytab
+        - C:\winauth-combined.keytab
+      when: inventory_hostname == 'dc1'
+      ignore_errors: yes
+
+    # Cross-Domain Trust Relationship Setup
+    - name: Remove existing DNS conditional forwarder from DC1 to DC2
+      win_shell: |
+        Remove-DnsServerZone -Name "DOMAIN2.LAB" -Force
+      when: inventory_hostname == 'dc1'
+      ignore_errors: yes
+
+    - name: Setup DNS conditional forwarding from DC1 to DC2
+      win_shell: |
+        Add-DnsServerConditionalForwarderZone -Name "DOMAIN2.LAB" -MasterServers 10.0.20.10 -PassThru
+      when: inventory_hostname == 'dc1'
+      ignore_errors: yes
+
+    - name: Remove existing DNS conditional forwarder from DC2 to DC1
+      win_shell: |
+        Remove-DnsServerZone -Name "DOMAIN1.LAB" -Force
+      when: inventory_hostname == 'dc2'
+      ignore_errors: yes
+
+    - name: Setup DNS conditional forwarding from DC2 to DC1
+      win_shell: |
+        Add-DnsServerConditionalForwarderZone -Name "DOMAIN1.LAB" -MasterServers 10.0.10.10 -PassThru
+      when: inventory_hostname == 'dc2'
+      ignore_errors: yes
+
+    - name: Create outbound trust from DOMAIN1 to DOMAIN2
+      win_shell: |
+        netdom trust DOMAIN1.LAB /domain:DOMAIN2.LAB /add /passwordt:{{ trust_password | default('DefaultTrustPass123!') }} /UserD:Administrator /PasswordD:{{ admin_password }}
+      when: inventory_hostname == 'dc1'
+      ignore_errors: yes
+
+    - name: Create inbound trust from DOMAIN2 to DOMAIN1  
+      win_shell: |
+        netdom trust DOMAIN2.LAB /domain:DOMAIN1.LAB /add /passwordt:{{ trust_password | default('DefaultTrustPass123!') }} /UserD:Administrator /PasswordD:{{ admin_password }}
+      when: inventory_hostname == 'dc2'
+      ignore_errors: yes

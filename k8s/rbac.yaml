@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: winauth-sa
+  namespace: winauth
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: winauth-role
+  namespace: winauth
+rules:
+# ConfigMapの読み取り権限
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+# Secretの読み取り権限
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: winauth-rolebinding
+  namespace: winauth
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: winauth-role
+subjects:
+- kind: ServiceAccount
+  name: winauth-sa
+  namespace: winauth

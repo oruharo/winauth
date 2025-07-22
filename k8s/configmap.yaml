@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: winauth
+data:
+  application-kerberos.yaml: |
+    server:
+      port: 8082
+    spring:
+      application:
+        name: adauth
+      profiles:
+        active: kerberos
+    
+    # Kerberos Configuration
+    kerberos:
+      principal: HTTP/winauth-service.winauth.svc.cluster.local@DOMAIN.COM
+      keytab: /etc/krb5/krb5.keytab
+    
+    # Active Directory Configuration  
+    ad:
+      domain: DOMAIN.COM
+      url: ldap://dc.domain.com:389
+      searchBase: DC=domain,DC=com
+    
+    # Logging
+    logging:
+      level:
+        org.springframework.security: DEBUG
+        org.springframework.security.kerberos: DEBUG
+        com.example.adauth: DEBUG
