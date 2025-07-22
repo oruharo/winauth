@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>認証エラー - Windows認証デモ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #dc3545;
+            text-align: center;
+        }
+        .error-box {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .help-section {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        ul {
+            margin: 10px 0;
+            padding-left: 30px;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>× 認証エラー</h1>
+        
+        <div class="error-box">
+            <p th:if="${loginError}" th:text="${errorMessage}"></p>
+            <p th:unless="${loginError}">Windows統合認証に失敗しました。</p>
+        </div>
+        
+        <div class="help-section">
+            <h2>解決方法</h2>
+            <p>以下の点を確認してください：</p>
+            <ul>
+                <li>ドメインアカウントでWindowsにログインしているか</li>
+                <li>ブラウザがWindows統合認証をサポートしているか</li>
+                <li>ブラウザのセキュリティ設定で、このサイトが信頼されたサイトに追加されているか</li>
+                <li>企業ネットワーク内からアクセスしているか</li>
+            </ul>
+            
+            <h3>Internet Explorer / Microsoft Edgeの場合</h3>
+            <ol>
+                <li>「インターネットオプション」を開く</li>
+                <li>「セキュリティ」タブ → 「ローカルイントラネット」を選択</li>
+                <li>「サイト」をクリックし、このサイトのURLを追加</li>
+                <li>「詳細設定」で「イントラネットのサーバーに対してのみ自動的にログオンする」を有効化</li>
+            </ol>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/" class="button">トップページへ戻る</a>
+        </div>
+    </div>
+</body>
+</html>

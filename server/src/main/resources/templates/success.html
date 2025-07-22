@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>認証成功 - Windows認証デモ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #28a745;
+            text-align: center;
+        }
+        .success-box {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .info-table th, .info-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .info-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .logout-button {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✓ 認証成功</h1>
+        
+        <div class="success-box">
+            <p>Windows統合認証による認証が成功しました。</p>
+        </div>
+        
+        <h2>ユーザー情報</h2>
+        <table class="info-table">
+            <tr>
+                <th>ユーザー名</th>
+                <td th:text="${username}"></td>
+            </tr>
+            <tr>
+                <th>ドメイン</th>
+                <td th:text="${domain}"></td>
+            </tr>
+            <tr>
+                <th>SID</th>
+                <td th:text="${sid}"></td>
+            </tr>
+        </table>
+        
+        <h2>所属グループ</h2>
+        <table class="info-table">
+            <tr>
+                <th>グループ名</th>
+                <th>SID</th>
+            </tr>
+            <tr th:each="group : ${groups}">
+                <td th:text="${group.fqn}"></td>
+                <td th:text="${group.sid}"></td>
+            </tr>
+        </table>
+        
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/" class="button">トップページへ</a>
+            <a href="/logout" class="button logout-button">ログアウト</a>
+        </div>
+    </div>
+</body>
+</html>

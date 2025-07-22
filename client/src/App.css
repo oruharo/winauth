@@ -1,0 +1,380 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.App {
+  padding: 20px;
+  min-height: 100vh;
+}
+
+.App-header {
+  background-color: #f5f5f5;
+  padding: 40px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.App-header h1 {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.App-header p {
+  color: #666;
+  margin-bottom: 30px;
+}
+
+.button-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.auth-button {
+  padding: 15px 30px;
+  font-size: 16px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+  min-height: 50px;
+}
+
+.auth-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.auth-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-button.secure {
+  background-color: #007bff;
+  color: white;
+}
+
+.auth-button.secure:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.auth-button.info {
+  background-color: #17a2b8;
+  color: white;
+}
+
+.auth-button.info:hover:not(:disabled) {
+  background-color: #138496;
+}
+
+.auth-button.logout {
+  background-color: #dc3545;
+  color: white;
+}
+
+.auth-button.logout:hover:not(:disabled) {
+  background-color: #c82333;
+}
+
+.auth-button.clear {
+  background-color: #6c757d;
+  color: white;
+}
+
+.auth-button.clear:hover:not(:disabled) {
+  background-color: #545b62;
+}
+
+.result-container {
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 30px;
+  text-align: left;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.result-container h2 {
+  color: #333;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.error-message {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 15px;
+  border-radius: 5px;
+  border: 1px solid #f5c6cb;
+  margin-bottom: 20px;
+}
+
+.html-response {
+  margin-top: 20px;
+}
+
+.html-response h3 {
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.html-content {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 5px;
+  padding: 20px;
+  font-family: 'Courier New', monospace;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* HTMLレスポンス内のスタイルをオーバーライド */
+.html-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+}
+
+.html-content th,
+.html-content td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.html-content th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+.html-content .success-box,
+.html-content .error-box,
+.html-content .help-section {
+  padding: 15px;
+  border-radius: 5px;
+  margin: 10px 0;
+}
+
+.html-content .success-box {
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+.html-content .error-box {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.html-content .help-section {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+}
+
+/* 新しいスタイル追加 */
+.auth-button.test {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.auth-button.test:hover:not(:disabled) {
+  background-color: #e0a800;
+}
+
+.test-section {
+  margin: 20px 0;
+  padding: 20px;
+  background-color: #fff3cd;
+  border-radius: 8px;
+  border: 1px solid #ffeaa7;
+}
+
+.test-section h3 {
+  margin-top: 0;
+  color: #856404;
+}
+
+.status-indicator {
+  padding: 10px 15px;
+  border-radius: 5px;
+  margin: 15px 0;
+  font-weight: bold;
+  text-align: center;
+}
+
+.status-indicator.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status-indicator.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.message-section {
+  padding: 15px;
+  background-color: #e7f1ff;
+  border-radius: 5px;
+  margin: 15px 0;
+}
+
+.error-code {
+  padding: 10px;
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 5px;
+  margin: 10px 0;
+  font-family: 'Courier New', monospace;
+}
+
+.user-info-section {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+  border: 1px solid #e9ecef;
+}
+
+.user-info-section h3 {
+  color: #495057;
+  margin-top: 0;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.info-item {
+  padding: 8px 12px;
+  background-color: white;
+  border-radius: 4px;
+  border-left: 4px solid #007bff;
+}
+
+.groups-section {
+  margin-top: 20px;
+}
+
+.groups-section h4 {
+  color: #495057;
+  margin-bottom: 15px;
+}
+
+.groups-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.group-item {
+  background-color: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 12px;
+  min-width: 200px;
+  flex: 1 1 auto;
+}
+
+.group-name {
+  font-weight: bold;
+  color: #495057;
+  margin-bottom: 5px;
+}
+
+.group-full-name {
+  font-size: 0.9em;
+  color: #6c757d;
+  margin-bottom: 3px;
+}
+
+.group-sid {
+  font-size: 0.8em;
+  color: #868e96;
+  font-family: 'Courier New', monospace;
+  margin-bottom: 3px;
+}
+
+.group-description {
+  font-size: 0.85em;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.json-details {
+  margin-top: 20px;
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+}
+
+.json-details summary {
+  padding: 15px;
+  background-color: #f8f9fa;
+  cursor: pointer;
+  font-weight: bold;
+  border-radius: 5px 5px 0 0;
+}
+
+.json-details summary:hover {
+  background-color: #e9ecef;
+}
+
+.json-content {
+  padding: 20px;
+  margin: 0;
+  background-color: #f8f9fa;
+  border-radius: 0 0 5px 5px;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  color: #495057;
+}
+
+@media (max-width: 768px) {
+  .App-header {
+    padding: 20px;
+  }
+  
+  .button-container {
+    max-width: 100%;
+  }
+  
+  .auth-button {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .groups-list {
+    flex-direction: column;
+  }
+
+  .group-item {
+    min-width: unset;
+  }
+}
