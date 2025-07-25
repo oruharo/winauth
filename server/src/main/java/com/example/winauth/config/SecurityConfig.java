@@ -20,7 +20,15 @@ public class SecurityConfig {
 
     @Bean
     public WindowsAuthProviderImpl windowsAuthProvider() {
-        return new WindowsAuthProviderImpl();
+        WindowsAuthProviderImpl authProvider = new WindowsAuthProviderImpl();
+        
+        // オプション: 特定のドメインコントローラーを指定する場合
+        // authProvider.setAllowGuestLogin(false);
+        // 
+        // 注意: WAFFLEは通常、Windowsの設定から自動的にドメイン情報を取得します
+        // 明示的なドメインコントローラーの指定は通常不要です
+        
+        return authProvider;
     }
 
     @Bean
