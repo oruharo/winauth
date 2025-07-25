@@ -47,6 +47,18 @@
             <artifactId>spring-ldap-core</artifactId>
         </dependency>
         
+        <!-- Kerberos/SPNEGO Support -->
+        <dependency>
+            <groupId>org.springframework.security.kerberos</groupId>
+            <artifactId>spring-security-kerberos-core</artifactId>
+            <version>1.0.1.RELEASE</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security.kerberos</groupId>
+            <artifactId>spring-security-kerberos-web</artifactId>
+            <version>1.0.1.RELEASE</version>
+        </dependency>
+        
         <!-- Development Tools -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -186,3 +186,35 @@ export const getCurrentUser = async (): Promise<LoginResponse> => {
     };
   }
 };
+
+// Windows統合認証（SPNEGO/Kerberos）- ドメイン参加クライアント用
+export const authenticateWithKerberos = async (): Promise<LoginResponse> => {
+  try {
+    // withCredentials: true でNegotiate認証を有効化
+    const response = await apiClient.get('/user', {
+      withCredentials: true,
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+    });
+    
+    return response.data;
+  } catch (error: any) {
+    if (error.response && error.response.status === 401) {
+      // 401の場合、ブラウザがNegotiate認証を試行する
+      return {
+        success: false,
+        message: 'Windows統合認証が利用できません。ドメインに参加しているか確認してください。'
+      };
+    }
+    
+    if (error.response && error.response.data) {
+      return error.response.data;
+    }
+    
+    return {
+      success: false,
+      message: `認証エラー: ${error.message}`
+    };
+  }
+};

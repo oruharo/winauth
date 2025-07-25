@@ -122,6 +122,28 @@ button:hover:not(:disabled) {
   border-color: #0066cc;
 }
 
+.kerberos-section {
+  margin: 20px 0;
+  padding: 20px;
+  background-color: #e7f3ff;
+  border-radius: 8px;
+  border: 1px solid #bee5eb;
+}
+
+.kerberos-section h4 {
+  margin: 0 0 15px 0;
+  color: #0c5460;
+}
+
+.kerberos-section button {
+  background-color: #17a2b8;
+  color: white;
+}
+
+.kerberos-section button:hover:not(:disabled) {
+  background-color: #138496;
+}
+
 .loading {
   margin: 20px 0;
   font-size: 18px;

@@ -6,7 +6,8 @@ import {
   logout, 
   testBasicAuth,
   loginWithAD,
-  getCurrentUser 
+  getCurrentUser,
+  authenticateWithKerberos
 } from './services/authService';
 import type { AuthResult, UserInfo, GroupInfo, LoginResponse } from './services/authService';
 import './App.css';
@@ -98,6 +99,21 @@ function App() {
       setResult({
         success: false,
         message: '現在のユーザー情報の取得でエラーが発生しました'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKerberosAuth = async () => {
+    setLoading(true);
+    try {
+      const authResult = await authenticateWithKerberos();
+      setResult(authResult);
+    } catch (error) {
+      setResult({
+        success: false,
+        message: 'Kerberos認証でエラーが発生しました'
       });
     } finally {
       setLoading(false);
@@ -246,7 +262,7 @@ function App() {
               checked={serverMode === 'server2'}
               onChange={() => setServerMode('server2')}
             />
-            Server 2 (AD認証 - ポート8082)
+            Server 2 (AD認証/Kerberos - ポート8082)
           </label>
         </div>
 
@@ -289,6 +305,13 @@ function App() {
                 disabled={loading}
               />
             </div>
+            <div className="kerberos-section">
+              <h4>自動認証（ドメイン参加クライアント用）</h4>
+              <button onClick={handleKerberosAuth} disabled={loading}>
+                Windows統合認証（Kerberos）
+              </button>
+            </div>
+            
             <div className="button-group">
               <button onClick={handleADLogin} disabled={loading}>
                 ADログイン
