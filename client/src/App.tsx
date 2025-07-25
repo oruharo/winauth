@@ -1,11 +1,22 @@
 import React, { useState } from 'react';
-import { authenticateWithWindows, getAuthInfo, getUserInfo, logout, testBasicAuth } from './services/authService';
-import type { AuthResult, UserInfo, GroupInfo } from './services/authService';
+import { 
+  authenticateWithWindows, 
+  getAuthInfo, 
+  getUserInfo, 
+  logout, 
+  testBasicAuth,
+  loginWithAD,
+  getCurrentUser 
+} from './services/authService';
+import type { AuthResult, UserInfo, GroupInfo, LoginResponse } from './services/authService';
 import './App.css';
 
 function App() {
-  const [result, setResult] = useState<AuthResult | null>(null);
+  const [result, setResult] = useState<AuthResult | LoginResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [serverMode, setServerMode] = useState<'server1' | 'server2'>('server2');
+  const [adUsername, setAdUsername] = useState('');
+  const [adPassword, setAdPassword] = useState('');
 
   const handleWindowsAuth = async () => {
     setLoading(true);
@@ -55,11 +66,51 @@ function App() {
     }
   };
 
+  const handleADLogin = async () => {
+    if (!adUsername || !adPassword) {
+      setResult({
+        success: false,
+        message: 'ユーザー名とパスワードを入力してください'
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const authResult = await loginWithAD(adUsername, adPassword);
+      setResult(authResult);
+    } catch (error) {
+      setResult({
+        success: false,
+        message: 'AD認証でエラーが発生しました'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGetCurrentUser = async () => {
+    setLoading(true);
+    try {
+      const authResult = await getCurrentUser();
+      setResult(authResult);
+    } catch (error) {
+      setResult({
+        success: false,
+        message: '現在のユーザー情報の取得でエラーが発生しました'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     setLoading(true);
     try {
-      const logoutResult = await logout();
-      setResult(logoutResult);
+      const authResult = await logout();
+      setResult(authResult);
+      setAdUsername('');
+      setAdPassword('');
     } catch (error) {
       setResult({
         success: false,
@@ -71,178 +122,200 @@ function App() {
     }
   };
 
-  const handleTestLogin = async (username: string, password: string) => {
-    setLoading(true);
-    try {
-      const authResult = await testBasicAuth(username, password);
-      setResult(authResult);
-    } catch (error) {
-      setResult({
-        success: false,
-        message: 'テスト認証でエラーが発生しました',
-        errorCode: 'UNEXPECTED_ERROR'
-      });
-    } finally {
-      setLoading(false);
+  const handleBasicAuth = async () => {
+    const username = prompt('ユーザー名を入力してください:');
+    const password = prompt('パスワードを入力してください:');
+    
+    if (username && password) {
+      setLoading(true);
+      try {
+        const authResult = await testBasicAuth(username, password);
+        setResult(authResult);
+      } catch (error) {
+        setResult({
+          success: false,
+          message: 'Basic認証でエラーが発生しました',
+          errorCode: 'UNEXPECTED_ERROR'
+        });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
-  const handleClearResult = () => {
-    setResult(null);
-  };
-
   const renderUserInfo = (userInfo: UserInfo) => (
-    <div className="user-info-section">
+    <div className="user-info">
       <h3>ユーザー情報</h3>
-      <div className="info-grid">
-        <div className="info-item">
-          <strong>ユーザー名:</strong> {userInfo.username}
-        </div>
-        {userInfo.fullName && (
-          <div className="info-item">
-            <strong>フルネーム:</strong> {userInfo.fullName}
-          </div>
-        )}
-        {userInfo.domain && (
-          <div className="info-item">
-            <strong>ドメイン:</strong> {userInfo.domain}
-          </div>
-        )}
-        {userInfo.sid && (
-          <div className="info-item">
-            <strong>SID:</strong> {userInfo.sid}
-          </div>
-        )}
-        {userInfo.email && (
-          <div className="info-item">
-            <strong>メール:</strong> {userInfo.email}
-          </div>
-        )}
-        {userInfo.authenticationType && (
-          <div className="info-item">
-            <strong>認証タイプ:</strong> {userInfo.authenticationType}
-          </div>
-        )}
-      </div>
+      <table>
+        <tbody>
+          <tr>
+            <td>ユーザー名:</td>
+            <td>{userInfo.username}</td>
+          </tr>
+          {userInfo.fullName && (
+            <tr>
+              <td>フルネーム:</td>
+              <td>{userInfo.fullName}</td>
+            </tr>
+          )}
+          {userInfo.domain && (
+            <tr>
+              <td>ドメイン:</td>
+              <td>{userInfo.domain}</td>
+            </tr>
+          )}
+          {userInfo.email && (
+            <tr>
+              <td>メール:</td>
+              <td>{userInfo.email}</td>
+            </tr>
+          )}
+          {userInfo.sid && (
+            <tr>
+              <td>SID:</td>
+              <td className="sid">{userInfo.sid}</td>
+            </tr>
+          )}
+          {userInfo.authenticationType && (
+            <tr>
+              <td>認証タイプ:</td>
+              <td>{userInfo.authenticationType}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
       
       {userInfo.groups && userInfo.groups.length > 0 && (
-        <div className="groups-section">
+        <div className="groups">
           <h4>所属グループ</h4>
-          <div className="groups-list">
+          <ul>
             {userInfo.groups.map((group: GroupInfo, index: number) => (
-              <div key={index} className="group-item">
-                <div className="group-name">{group.name}</div>
-                {group.fullName && group.fullName !== group.name && (
-                  <div className="group-full-name">{group.fullName}</div>
-                )}
-                {group.sid && (
-                  <div className="group-sid">SID: {group.sid}</div>
-                )}
-                {group.description && (
-                  <div className="group-description">{group.description}</div>
-                )}
-              </div>
+              <li key={index}>
+                <strong>{group.name}</strong>
+                {group.fullName && ` - ${group.fullName}`}
+                {group.description && <div className="group-desc">{group.description}</div>}
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       )}
+    </div>
+  );
+
+  const renderLoginResponse = (response: LoginResponse) => (
+    <div className="user-info">
+      <h3>認証結果</h3>
+      <table>
+        <tbody>
+          {response.username && (
+            <tr>
+              <td>ユーザー名:</td>
+              <td>{response.username}</td>
+            </tr>
+          )}
+          {response.roles && response.roles.length > 0 && (
+            <tr>
+              <td>ロール:</td>
+              <td>{response.roles.join(', ')}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Windows統合認証 API クライアント</h1>
-        <p>Spring Boot APIサーバーと連携してWindows認証を実行します</p>
+        <h1>Windows/AD Authentication Test</h1>
         
-        <div className="button-container">
-          <button 
-            onClick={handleWindowsAuth} 
-            disabled={loading}
-            className="auth-button secure"
-          >
-            {loading ? '処理中...' : 'Windows認証でセキュアページにアクセス'}
-          </button>
-          
-          <button 
-            onClick={handleGetAuthInfo} 
-            disabled={loading}
-            className="auth-button info"
-          >
-            {loading ? '処理中...' : '認証情報を取得'}
-          </button>
-          
-          <button 
-            onClick={handleGetUserInfo} 
-            disabled={loading}
-            className="auth-button info"
-          >
-            {loading ? '処理中...' : 'ユーザー情報を取得'}
-          </button>
-          
-          <button 
-            onClick={handleLogout} 
-            disabled={loading}
-            className="auth-button logout"
-          >
-            {loading ? '処理中...' : 'ログアウト'}
-          </button>
-          
-          <div className="test-section">
-            <h3>テスト認証</h3>
-            <button 
-              onClick={() => handleTestLogin('testuser', 'password123')}
-              disabled={loading}
-              className="auth-button test"
-            >
-              {loading ? '処理中...' : 'テストユーザーでログイン'}
-            </button>
-            
-            <button 
-              onClick={() => handleTestLogin('admin', 'password123')}
-              disabled={loading}
-              className="auth-button test"
-            >
-              {loading ? '処理中...' : '管理者でログイン'}
-            </button>
-          </div>
-          
-          {result && (
-            <button 
-              onClick={handleClearResult} 
-              className="auth-button clear"
-            >
-              結果をクリア
-            </button>
-          )}
+        <div className="server-selector">
+          <label>
+            <input 
+              type="radio" 
+              value="server1" 
+              checked={serverMode === 'server1'}
+              onChange={() => setServerMode('server1')}
+            />
+            Server 1 (Windows統合認証 - ポート8081)
+          </label>
+          <label>
+            <input 
+              type="radio" 
+              value="server2" 
+              checked={serverMode === 'server2'}
+              onChange={() => setServerMode('server2')}
+            />
+            Server 2 (AD認証 - ポート8082)
+          </label>
         </div>
 
+        {serverMode === 'server1' ? (
+          <div className="button-group">
+            <button onClick={handleWindowsAuth} disabled={loading}>
+              Windows統合認証
+            </button>
+            <button onClick={handleGetAuthInfo} disabled={loading}>
+              認証情報取得
+            </button>
+            <button onClick={handleGetUserInfo} disabled={loading}>
+              ユーザー情報取得
+            </button>
+            <button onClick={handleBasicAuth} disabled={loading}>
+              Basic認証テスト
+            </button>
+            <button onClick={handleLogout} disabled={loading} className="logout-btn">
+              ログアウト
+            </button>
+          </div>
+        ) : (
+          <div className="ad-auth-form">
+            <h3>AD認証フォーム</h3>
+            <div className="form-group">
+              <input
+                type="text"
+                placeholder="ドメイン\ユーザー名 または UPN"
+                value={adUsername}
+                onChange={(e) => setAdUsername(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div className="form-group">
+              <input
+                type="password"
+                placeholder="パスワード"
+                value={adPassword}
+                onChange={(e) => setAdPassword(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div className="button-group">
+              <button onClick={handleADLogin} disabled={loading}>
+                ADログイン
+              </button>
+              <button onClick={handleGetCurrentUser} disabled={loading}>
+                現在のユーザー
+              </button>
+              <button onClick={handleLogout} disabled={loading} className="logout-btn">
+                ログアウト
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loading && <div className="loading">処理中...</div>}
+        
         {result && (
-          <div className="result-container">
-            <h2>APIレスポンス</h2>
+          <div className={`result ${result.success ? 'success' : 'error'}`}>
+            <h2>{result.success ? '成功' : 'エラー'}</h2>
+            <p>{result.message}</p>
             
-            <div className={`status-indicator ${result.success ? 'success' : 'error'}`}>
-              {result.success ? '✅ 成功' : '❌ エラー'}
-            </div>
+            {'userInfo' in result && result.userInfo && renderUserInfo(result.userInfo)}
+            {'username' in result && result.username && renderLoginResponse(result as LoginResponse)}
             
-            <div className="message-section">
-              <strong>メッセージ:</strong> {result.message}
-            </div>
-            
-            {result.errorCode && (
-              <div className="error-code">
-                <strong>エラーコード:</strong> {result.errorCode}
-              </div>
+            {'errorCode' in result && result.errorCode && (
+              <p className="error-code">エラーコード: {result.errorCode}</p>
             )}
-            
-            {result.userInfo && renderUserInfo(result.userInfo)}
-            
-            <details className="json-details">
-              <summary>JSONレスポンス（詳細）</summary>
-              <pre className="json-content">
-                {JSON.stringify(result, null, 2)}
-              </pre>
-            </details>
           </div>
         )}
       </header>

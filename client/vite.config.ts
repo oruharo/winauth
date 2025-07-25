@@ -7,13 +7,12 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8081',
+        // 環境変数でサーバーを切り替え可能
+        target: process.env.VITE_API_URL || 'http://localhost:8082',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy, options) => {
-          // Windows認証のためのクレデンシャル転送を有効にする
+          // 認証ヘッダーがある場合は転送
           proxy.on('proxyReq', (proxyReq, req, res) => {
-            // 認証ヘッダーがある場合は転送
             if (req.headers.authorization) {
               proxyReq.setHeader('Authorization', req.headers.authorization);
             }

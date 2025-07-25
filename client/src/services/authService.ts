@@ -37,6 +37,14 @@ export interface GroupInfo {
   description?: string;
 }
 
+// AD認証用のレスポンス型
+export interface LoginResponse {
+  success: boolean;
+  message: string;
+  username?: string;
+  roles?: string[];
+}
+
 // Windows統合認証のAPI呼び出し
 export const authenticateWithWindows = async (): Promise<AuthResult> => {
   try {
@@ -138,6 +146,43 @@ export const testBasicAuth = async (username: string, password: string): Promise
       success: false,
       message: `Basic認証に失敗しました: ${error.message}`,
       errorCode: 'BASIC_AUTH_ERROR'
+    };
+  }
+};
+
+// AD認証（フォームベース）
+export const loginWithAD = async (username: string, password: string): Promise<LoginResponse> => {
+  try {
+    const response = await apiClient.post('/login', {
+      username,
+      password
+    });
+    
+    return response.data;
+  } catch (error: any) {
+    if (error.response && error.response.data) {
+      return error.response.data;
+    }
+    return {
+      success: false,
+      message: `AD認証に失敗しました: ${error.message}`
+    };
+  }
+};
+
+// 現在のユーザー情報を取得（server2用）
+export const getCurrentUser = async (): Promise<LoginResponse> => {
+  try {
+    const response = await apiClient.get('/user');
+    
+    return response.data;
+  } catch (error: any) {
+    if (error.response && error.response.data) {
+      return error.response.data;
+    }
+    return {
+      success: false,
+      message: `ユーザー情報の取得に失敗しました: ${error.message}`
     };
   }
 };

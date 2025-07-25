@@ -28,328 +28,202 @@
   margin-bottom: 30px;
 }
 
-.button-container {
+.button-group {
   display: flex;
-  flex-direction: column;
-  gap: 15px;
-  align-items: center;
-  max-width: 400px;
-  margin: 0 auto;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 20px 0;
 }
 
-.auth-button {
-  padding: 15px 30px;
+button {
+  padding: 10px 20px;
   font-size: 16px;
-  font-weight: 500;
   border: none;
-  border-radius: 8px;
+  border-radius: 5px;
   cursor: pointer;
   transition: all 0.3s ease;
-  width: 100%;
-  min-height: 50px;
 }
 
-.auth-button:hover:not(:disabled) {
+button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.auth-button:disabled {
+button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.auth-button.secure {
+button {
   background-color: #007bff;
   color: white;
 }
 
-.auth-button.secure:hover:not(:disabled) {
+button:hover:not(:disabled) {
   background-color: #0056b3;
 }
 
-.auth-button.info {
-  background-color: #17a2b8;
-  color: white;
-}
-
-.auth-button.info:hover:not(:disabled) {
-  background-color: #138496;
-}
-
-.auth-button.logout {
+.logout-btn {
   background-color: #dc3545;
-  color: white;
 }
 
-.auth-button.logout:hover:not(:disabled) {
+.logout-btn:hover:not(:disabled) {
   background-color: #c82333;
 }
 
-.auth-button.clear {
-  background-color: #6c757d;
-  color: white;
-}
-
-.auth-button.clear:hover:not(:disabled) {
-  background-color: #545b62;
-}
-
-.result-container {
-  background-color: white;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+.server-selector {
+  margin: 20px 0;
   padding: 20px;
-  margin-top: 30px;
-  text-align: left;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: #f8f9fa;
+  border-radius: 8px;
 }
 
-.result-container h2 {
-  color: #333;
+.server-selector label {
+  display: block;
+  margin: 10px 0;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.server-selector input[type="radio"] {
+  margin-right: 10px;
+}
+
+.ad-auth-form {
+  background-color: #f8f9fa;
+  padding: 30px;
+  border-radius: 8px;
+  margin: 20px 0;
+  min-width: 400px;
+}
+
+.ad-auth-form h3 {
+  margin-top: 0;
   margin-bottom: 20px;
-  text-align: center;
-}
-
-.error-message {
-  background-color: #f8d7da;
-  color: #721c24;
-  padding: 15px;
-  border-radius: 5px;
-  border: 1px solid #f5c6cb;
-  margin-bottom: 20px;
-}
-
-.html-response {
-  margin-top: 20px;
-}
-
-.html-response h3 {
   color: #333;
+}
+
+.form-group {
   margin-bottom: 15px;
 }
 
-.html-content {
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 5px;
-  padding: 20px;
-  font-family: 'Courier New', monospace;
-  white-space: pre-wrap;
-  overflow-x: auto;
-  max-height: 500px;
-  overflow-y: auto;
-}
-
-/* HTMLレスポンス内のスタイルをオーバーライド */
-.html-content table {
+.form-group input {
   width: 100%;
-  border-collapse: collapse;
-  margin: 10px 0;
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
 }
 
-.html-content th,
-.html-content td {
-  border: 1px solid #ddd;
-  padding: 8px;
+.form-group input:focus {
+  outline: none;
+  border-color: #0066cc;
+}
+
+.loading {
+  margin: 20px 0;
+  font-size: 18px;
+  color: #666;
+}
+
+.result {
+  margin-top: 20px;
+  padding: 20px;
+  border-radius: 8px;
   text-align: left;
 }
 
-.html-content th {
-  background-color: #f2f2f2;
-  font-weight: bold;
-}
-
-.html-content .success-box,
-.html-content .error-box,
-.html-content .help-section {
-  padding: 15px;
-  border-radius: 5px;
-  margin: 10px 0;
-}
-
-.html-content .success-box {
+.result.success {
   background-color: #d4edda;
   border: 1px solid #c3e6cb;
   color: #155724;
 }
 
-.html-content .error-box {
+.result.error {
   background-color: #f8d7da;
   border: 1px solid #f5c6cb;
   color: #721c24;
 }
 
-.html-content .help-section {
-  background-color: #fff3cd;
-  border: 1px solid #ffeaa7;
-  color: #856404;
-}
-
-/* 新しいスタイル追加 */
-.auth-button.test {
-  background-color: #ffc107;
-  color: #212529;
-}
-
-.auth-button.test:hover:not(:disabled) {
-  background-color: #e0a800;
-}
-
-.test-section {
-  margin: 20px 0;
-  padding: 20px;
-  background-color: #fff3cd;
-  border-radius: 8px;
-  border: 1px solid #ffeaa7;
-}
-
-.test-section h3 {
+.result h2 {
   margin-top: 0;
-  color: #856404;
+  margin-bottom: 10px;
 }
 
-.status-indicator {
-  padding: 10px 15px;
-  border-radius: 5px;
-  margin: 15px 0;
-  font-weight: bold;
-  text-align: center;
+.result p {
+  margin: 5px 0;
 }
 
-.status-indicator.success {
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-}
-
-.status-indicator.error {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-}
-
-.message-section {
+.user-info {
+  margin-top: 20px;
   padding: 15px;
-  background-color: #e7f1ff;
+  background-color: rgba(255, 255, 255, 0.5);
   border-radius: 5px;
-  margin: 15px 0;
+}
+
+.user-info h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.user-info table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.user-info td {
+  padding: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.user-info td:first-child {
+  font-weight: bold;
+  width: 40%;
+}
+
+.user-info .sid {
+  font-family: monospace;
+  font-size: 0.9em;
+  word-break: break-all;
+}
+
+.groups {
+  margin-top: 15px;
+}
+
+.groups h4 {
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.groups ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.groups li {
+  margin-bottom: 8px;
+  padding: 8px;
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.group-desc {
+  font-size: 0.9em;
+  color: #666;
+  margin-top: 4px;
 }
 
 .error-code {
+  margin-top: 10px;
   padding: 10px;
-  background-color: #fff3cd;
-  border: 1px solid #ffeaa7;
-  border-radius: 5px;
-  margin: 10px 0;
-  font-family: 'Courier New', monospace;
-}
-
-.user-info-section {
-  background-color: #f8f9fa;
-  padding: 20px;
-  border-radius: 8px;
-  margin: 20px 0;
-  border: 1px solid #e9ecef;
-}
-
-.user-info-section h3 {
-  color: #495057;
-  margin-top: 0;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.info-item {
-  padding: 8px 12px;
-  background-color: white;
+  background-color: rgba(255, 255, 255, 0.3);
   border-radius: 4px;
-  border-left: 4px solid #007bff;
-}
-
-.groups-section {
-  margin-top: 20px;
-}
-
-.groups-section h4 {
-  color: #495057;
-  margin-bottom: 15px;
-}
-
-.groups-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.group-item {
-  background-color: white;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  padding: 12px;
-  min-width: 200px;
-  flex: 1 1 auto;
-}
-
-.group-name {
-  font-weight: bold;
-  color: #495057;
-  margin-bottom: 5px;
-}
-
-.group-full-name {
-  font-size: 0.9em;
-  color: #6c757d;
-  margin-bottom: 3px;
-}
-
-.group-sid {
-  font-size: 0.8em;
-  color: #868e96;
-  font-family: 'Courier New', monospace;
-  margin-bottom: 3px;
-}
-
-.group-description {
-  font-size: 0.85em;
-  color: #6c757d;
-  font-style: italic;
-}
-
-.json-details {
-  margin-top: 20px;
-  border: 1px solid #dee2e6;
-  border-radius: 5px;
-}
-
-.json-details summary {
-  padding: 15px;
-  background-color: #f8f9fa;
-  cursor: pointer;
-  font-weight: bold;
-  border-radius: 5px 5px 0 0;
-}
-
-.json-details summary:hover {
-  background-color: #e9ecef;
-}
-
-.json-content {
-  padding: 20px;
-  margin: 0;
-  background-color: #f8f9fa;
-  border-radius: 0 0 5px 5px;
-  overflow-x: auto;
-  font-family: 'Courier New', monospace;
-  font-size: 0.9em;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  color: #495057;
+  font-family: monospace;
 }
 
 @media (max-width: 768px) {
@@ -357,24 +231,16 @@
     padding: 20px;
   }
   
-  .button-container {
-    max-width: 100%;
-  }
-  
-  .auth-button {
-    padding: 12px 20px;
-    font-size: 14px;
-  }
-
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .groups-list {
+  .button-group {
     flex-direction: column;
   }
+  
+  button {
+    width: 100%;
+  }
 
-  .group-item {
+  .ad-auth-form {
     min-width: unset;
+    width: 100%;
   }
 }
