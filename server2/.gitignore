@@ -31,3 +31,16 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Security sensitive files ###
+*.keytab
+krb5.conf
+*.p12
+*.jks
+
+### Application logs ###
+*.log
+server.log
+
+### Temporary files ###
+temp.zip

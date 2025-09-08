@@ -14,6 +14,9 @@ import org.springframework.security.kerberos.authentication.KerberosAuthenticati
 import org.springframework.security.kerberos.authentication.sun.SunJaasKerberosClient;
 import org.springframework.security.kerberos.web.authentication.SpnegoAuthenticationProcessingFilter;
 import org.springframework.security.kerberos.web.authentication.SpnegoEntryPoint;
+import org.springframework.security.kerberos.authentication.KerberosServiceAuthenticationProvider;
+import org.springframework.security.kerberos.authentication.sun.SunJaasKerberosTicketValidator;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.ldap.authentication.ad.ActiveDirectoryLdapAuthenticationProvider;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
@@ -34,10 +37,13 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
     @Value("${ad.url}")
     private String adUrl;
 
+    @Value("${ad.searchBase:}")
+    private String searchBase;
+
     @Bean
     public ActiveDirectoryLdapAuthenticationProvider activeDirectoryLdapAuthenticationProvider() {
         ActiveDirectoryLdapAuthenticationProvider provider = 
-            new ActiveDirectoryLdapAuthenticationProvider(adDomain, adUrl);
+            new ActiveDirectoryLdapAuthenticationProvider(adDomain, adUrl, searchBase);
         provider.setConvertSubErrorCodesToExceptions(true);
         provider.setUseAuthenticationRequestCredentials(true);
         return provider;
@@ -45,7 +51,26 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
 
     @Bean
     public SunJaasKerberosClient kerberosClient() {
-        return new SunJaasKerberosClient();
+        SunJaasKerberosClient client = new SunJaasKerberosClient();
+        client.setDebug(true);
+        return client;
+    }
+
+    @Bean
+    public SunJaasKerberosTicketValidator sunJaasKerberosTicketValidator() {
+        SunJaasKerberosTicketValidator ticketValidator = new SunJaasKerberosTicketValidator();
+        ticketValidator.setServicePrincipal(servicePrincipal);
+        ticketValidator.setKeyTabLocation(new FileSystemResource(keytabLocation));
+        ticketValidator.setDebug(true);
+        return ticketValidator;
+    }
+
+    @Bean
+    public KerberosServiceAuthenticationProvider kerberosServiceAuthenticationProvider() {
+        KerberosServiceAuthenticationProvider provider = new KerberosServiceAuthenticationProvider();
+        provider.setTicketValidator(sunJaasKerberosTicketValidator());
+        provider.setUserDetailsService(kerberosUserDetailsService());
+        return provider;
     }
 
     @Bean
@@ -72,7 +97,7 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
         try {
             filter.setAuthenticationManager(authenticationManagerBean());
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to create SpnegoAuthenticationProcessingFilter", e);
         }
         return filter;
     }
@@ -80,6 +105,7 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
         auth
+            .authenticationProvider(kerberosServiceAuthenticationProvider())
             .authenticationProvider(kerberosAuthenticationProvider())
             .authenticationProvider(activeDirectoryLdapAuthenticationProvider());
     }
@@ -88,22 +114,30 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
         http
             .authorizeRequests()
+                // 公開エンドポイント
                 .antMatchers("/", "/login", "/error", "/css/**", "/js/**").permitAll()
-                .antMatchers("/api/health").permitAll()
+                // API公開エンドポイント
+                .antMatchers("/api/health", "/api/login").permitAll()
+                // その他は認証必須
                 .anyRequest().authenticated()
                 .and()
+            // SPNEGO認証フィルターを追加
             .addFilterBefore(spnegoAuthenticationProcessingFilter(), BasicAuthenticationFilter.class)
             .exceptionHandling()
                 .authenticationEntryPoint(spnegoEntryPoint())
                 .and()
             .formLogin()
                 .loginPage("/login")
+                .loginProcessingUrl("/login")
+                .defaultSuccessUrl("/home", true)
                 .failureUrl("/login?error=true")
                 .permitAll()
                 .and()
             .logout()
                 .logoutUrl("/logout")
                 .logoutSuccessUrl("/login?logout=true")
+                .invalidateHttpSession(true)
+                .deleteCookies("JSESSIONID")
                 .permitAll()
                 .and()
             .csrf().disable()

@@ -41,8 +41,30 @@
       "Bash(-d packageName=com.example.adauth )",
       "Bash(-d packaging=jar )",
       "Bash(-d javaVersion=11 )",
-      "Bash(-d dependencies=web,security,ldap )"
+      "Bash(-d dependencies=web,security,ldap )",
+      "WebSearch",
+      "Bash(uvx:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp:*)",
+      "Bash(/mcp)",
+      "mcp__serena__check_onboarding_performed",
+      "mcp__serena__onboarding",
+      "mcp__serena__list_dir",
+      "mcp__serena__read_file",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__find_symbol",
+      "mcp__serena__write_memory",
+      "mcp__serena__create_text_file",
+      "mcp__serena__replace_symbol_body",
+      "mcp__serena__replace_regex",
+      "mcp__serena__think_about_collected_information",
+      "mcp__serena__think_about_whether_you_are_done",
+      "Bash(mv:*)"
     ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "serena"
+  ]
 }
