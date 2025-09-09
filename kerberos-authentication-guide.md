@@ -1,7 +1,14 @@
 # Kerberos自動認証 実装・運用ガイド
 
 ## 概要
-Server2 パターンBは、ドメイン参加クライアント + Linux非ドメインサーバーでのKerberos自動認証方式です。ユーザーはID/パスワードの入力なしで、WindowsのドメインログインだけでWebアプリケーションに自動認証されます。
+このガイドでは、ドメイン参加クライアント + Linux非ドメインサーバーでのKerberos自動認証（SPNEGO）の技術的な実装詳細と運用について説明します。
+
+> **セットアップ手順**: 実際の環境構築手順については [KERBEROS_SETUP.md](./KERBEROS_SETUP.md) を参照してください。
+
+このパターンでは：
+- **ユーザー体験**: ID/パスワードの入力なしで自動認証
+- **技術基盤**: Windows Kerberos + Linux SPNEGO + Spring Security
+- **セキュリティ**: 強固なKerberos認証による SSO
 
 ## アーキテクチャ
 **前提**: ドメイン参加クライアント + Linux非ドメインサーバー
@@ -58,6 +65,8 @@ sequenceDiagram
 
 ## 技術仕様
 
+> **実装例**: このガイドの設定例を実際の環境で使用する場合は、[KERBEROS_SETUP.md](./KERBEROS_SETUP.md) の具体的なセットアップ手順も併せて実行してください。
+
 ### 必要なライブラリ
 - **Spring Security Kerberos**: メイン認証ライブラリ
 - **認証プロバイダー**: KerberosAuthenticationProvider
@@ -108,35 +117,16 @@ server.port=8082
 1. **`/etc/krb5.conf`** - Kerberos設定ファイル
 2. **`/etc/krb5.keytab`** - サービスアカウント認証情報（権限600）
 
-### Keytabファイル作成手順
+### Keytab設定概要
 
-#### Windows Active Directory側
-```powershell
-# サービスプリンシパル名の作成
-setspn -A HTTP/linux-server.domain.com service-account
+Keytabファイルは、サーバー認証用の暗号化された認証情報を含むファイルです：
 
-# Keytabファイル生成
-ktpass -out C:\temp\krb5.keytab ^
-       -princ HTTP/linux-server.domain.com@DOMAIN.COM ^
-       -mapUser service-account@domain.com ^
-       -mapOp set ^
-       -pass ServiceAccountPassword ^
-       -crypto AES256-SHA1 ^
-       -pType KRB5_NT_PRINCIPAL
-```
+- **作成場所**: Active Directoryドメインコントローラー
+- **配置場所**: Linuxサーバーの`/etc/krb5.keytab`
+- **権限**: 600 (root読み書きのみ)
+- **内容**: サービスプリンシパル用の暗号化キー
 
-#### Linux サーバー側
-```bash
-# Keytabファイル配置
-sudo cp krb5.keytab /etc/
-sudo chown root:root /etc/krb5.keytab
-sudo chmod 600 /etc/krb5.keytab
-
-# Keytab検証
-sudo klist -k /etc/krb5.keytab
-sudo kinit -kt /etc/krb5.keytab HTTP/linux-server.domain.com@DOMAIN.COM
-sudo klist
-```
+> **詳細な作成手順**: [KERBEROS_SETUP.md](./KERBEROS_SETUP.md#12-keytabファイルの生成) を参照
 
 ## Spring Security設定例
 
@@ -248,67 +238,26 @@ sequenceDiagram
 
 ## トラブルシューティング
 
-### よくある問題と解決方法
+### 一般的な問題カテゴリー
 
-#### Keytab関連
-**問題**: Keytabファイルのパスまたは権限が正しくない
-```bash
-# 解決方法
-sudo ls -la /etc/krb5.keytab
-sudo chown root:root /etc/krb5.keytab
-sudo chmod 600 /etc/krb5.keytab
-```
+Kerberos認証でよく発生する問題は以下のカテゴリーに分類されます：
 
-**問題**: SPNが正しく作成されていない
-```powershell
-# 確認方法
-setspn -L service-account
+#### 1. **設定ファイル関連**
+- Keytabファイルのパス・権限エラー
+- SPN (Service Principal Name) の設定不備
+- krb5.conf の設定ミス
 
-# 修正方法
-setspn -A HTTP/linux-server.domain.com service-account
-```
+#### 2. **ネットワーク・インフラ**
+- 時刻同期エラー (5分を超える時刻差)
+- DNS解決の問題
+- ファイアウォールによるポートブロック
 
-**問題**: Keytabファイルの暗号化方式がマッチしない
-```bash
-# 確認方法
-sudo klist -k /etc/krb5.keytab
+#### 3. **認証フロー**
+- TGT (Ticket Granting Ticket) の有効期限切れ
+- Service Ticketの検証失敗
+- SPNEGO ネゴシエーションの失敗
 
-# 修正方法（ktpassで再作成）
-ktpass -crypto AES256-SHA1
-```
-
-#### 時刻同期問題
-**問題**: LinuxサーバーとADドメインコントローラーの時刻差（5分以上）
-```bash
-# 確認方法
-timedatectl status
-ntpq -p
-
-# 修正方法
-sudo systemctl enable --now ntp
-sudo ntpdate -s dc1.domain.com
-```
-
-#### ネットワーク問題
-**問題**: DNS解決ができない（KDCが見つからない）
-```bash
-# 確認方法
-nslookup dc1.domain.com
-dig SRV _kerberos._tcp.domain.com
-
-# 修正方法（/etc/hosts に追加）
-192.168.1.10 dc1.domain.com
-```
-
-**問題**: Kerberosポート（88/tcp, 88/udp）がブロックされている
-```bash
-# 確認方法
-telnet dc1.domain.com 88
-nc -u dc1.domain.com 88
-
-# ファイアウォール設定確認
-sudo ufw status
-```
+> **具体的な解決手順**: [KERBEROS_SETUP.md](./KERBEROS_SETUP.md#6-トラブルシューティング) の詳細なトラブルシューティング手順を参照
 
 ### デバッグ設定
 

@@ -253,7 +253,7 @@ function App() {
               checked={serverMode === 'server1'}
               onChange={() => setServerMode('server1')}
             />
-            Server 1 (Windows統合認証 - ポート8081)
+            AD/LDAP認証 (デフォルトプロファイル - ポート8082)
           </label>
           <label>
             <input 
@@ -262,7 +262,7 @@ function App() {
               checked={serverMode === 'server2'}
               onChange={() => setServerMode('server2')}
             />
-            Server 2 (AD認証/Kerberos - ポート8082)
+            Kerberos認証 (kerberosプロファイル - ポート8082)
           </label>
         </div>
 
