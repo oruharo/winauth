@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: krb5-config
+  namespace: winauth
+data:
+  krb5.conf: |
+    [libdefaults]
+        default_realm = DOMAIN.COM
+        dns_lookup_realm = false
+        dns_lookup_kdc = false
+        ticket_lifetime = 24h
+        renew_lifetime = 7d
+        forwardable = true
+        rdns = false
+        
+    [realms]
+        DOMAIN.COM = {
+            kdc = dc.domain.com
+            admin_server = dc.domain.com
+            default_domain = domain.com
+        }
+        
+    [domain_realm]
+        .domain.com = DOMAIN.COM
+        domain.com = DOMAIN.COM
+        
+    [logging]
+        default = STDERR
+        kdc = STDERR
+        admin_server = STDERR
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: winauth
+data:
+  application-kerberos.yaml: |
+    server:
+      port: 8082
+    spring:
+      application:
+        name: adauth
+      profiles:
+        active: kerberos
+    
+    # Kerberos Configuration
+    kerberos:
+      principal: HTTP/winauth-service.winauth.svc.cluster.local@DOMAIN.COM
+      keytab: /etc/krb5/krb5.keytab
+    
+    # Active Directory Configuration  
+    ad:
+      domain: DOMAIN.COM
+      url: ldap://dc.domain.com:389
+      searchBase: DC=domain,DC=com
+    
+    # JVM System Properties for Kerberos
+    java:
+      security:
+        krb5:
+          conf: /etc/krb5/krb5.conf
+          realm: DOMAIN.COM
+          kdc: dc.domain.com
+    
+    # Logging
+    logging:
+      level:
+        org.springframework.security: DEBUG
+        org.springframework.security.kerberos: DEBUG
+        com.example.adauth: DEBUG

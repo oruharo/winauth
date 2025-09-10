@@ -10,65 +10,181 @@
 
 ## 1. Active Directory設定（ドメイン管理者が実施）
 
-### 1.1 サービスプリンシパル名（SPN）の作成
-```cmd
-# ADドメインコントローラーで実行
-setspn -A HTTP/your-linux-server.domain.com adauth-service-account
-setspn -A HTTP/your-linux-server adauth-service-account
+### 1.1 サービスアカウントの作成
+
+#### PowerShellでのサービスアカウント作成
+```powershell
+# ADドメインコントローラーで実行（管理者権限）
+# Active Directory PowerShellモジュールをインポート
+Import-Module ActiveDirectory
+
+# サービスアカウント作成
+New-ADUser -Name "svc-winauth-k8s" `
+  -SamAccountName "svc-winauth-k8s" `
+  -UserPrincipalName "svc-winauth-k8s@DOMAIN.COM" `
+  -DisplayName "WinAuth K8S Service Account" `
+  -Description "Service account for Kubernetes WinAuth application" `
+  -Path "OU=ServiceAccounts,DC=domain,DC=com" `
+  -AccountPassword (ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force) `
+  -Enabled $true `
+  -PasswordNeverExpires $true `
+  -CannotChangePassword $true
+
+# アカウントの確認
+Get-ADUser svc-winauth-k8s -Properties *
+
+# 必要に応じてグループに追加
+Add-ADGroupMember -Identity "Domain Users" -Members svc-winauth-k8s
 ```
 
-### 1.2 Keytabファイルの生成
+#### コマンドプロンプトでのサービスアカウント作成（代替方法）
 ```cmd
 # ADドメインコントローラーで実行
-ktpass -princ HTTP/your-linux-server.domain.com@DOMAIN.COM ^
-       -mapuser adauth-service-account@DOMAIN.COM ^
+# サービスアカウント作成
+dsadd user "CN=svc-winauth-k8s,OU=ServiceAccounts,DC=domain,DC=com" ^
+  -samid svc-winauth-k8s ^
+  -upn svc-winauth-k8s@DOMAIN.COM ^
+  -fn "WinAuth" ^
+  -ln "K8S Service" ^
+  -display "WinAuth K8S Service Account" ^
+  -desc "Service account for Kubernetes WinAuth application" ^
+  -pwd P@ssw0rd123! ^
+  -pwdneverexpires yes ^
+  -disabled no
+
+# アカウントの確認
+dsquery user -name svc-winauth-k8s
+dsget user "CN=svc-winauth-k8s,OU=ServiceAccounts,DC=domain,DC=com" -display -desc -samid
+```
+
+#### GUI（Active Directory ユーザーとコンピューター）での作成
+1. **Active Directory ユーザーとコンピューター**を開く
+2. **ServiceAccounts** OU（または適切なOU）を右クリック
+3. **新規作成** → **ユーザー**
+4. 以下を入力：
+   - 名: `WinAuth`
+   - 姓: `K8S Service`
+   - ユーザーログオン名: `svc-winauth-k8s`
+   - ユーザーログオン名（Windows 2000より前）: `svc-winauth-k8s`
+5. パスワード設定：
+   - パスワード: `P@ssw0rd123!`（適切な強度のパスワード）
+   - ☑ パスワードを無期限にする
+   - ☑ ユーザーはパスワードを変更できない
+   - ☐ ユーザーは次回ログオン時にパスワード変更が必要
+6. **完了**をクリック
+
+### 1.2 サービスプリンシパル名（SPN）の作成
+
+#### K8S環境用のSPN（Ingress使用）
+```cmd
+# ADドメインコントローラーで実行
+# メインSPN - Ingress経由の外部アクセス用（必須）
+setspn -A HTTP/winauth.example.com svc-winauth-k8s
+
+# 追加のIngress用ドメイン（複数ドメインがある場合）
+setspn -A HTTP/auth.company.com svc-winauth-k8s
+
+# 確認
+setspn -L svc-winauth-k8s
+
+# 重複SPNのチェック（重要）
+setspn -X
+
+# --- 以下は参考（K8S内部通信が必要な場合のみ） ---
+# K8S Service内部通信用（通常は不要）
+# setspn -A HTTP/winauth-service.winauth.svc.cluster.local svc-winauth-k8s
+```
+
+#### PowerShellでのSPN設定（代替方法）
+```powershell
+# SPNを設定
+Set-ADUser -Identity svc-winauth-k8s -ServicePrincipalNames @{
+    Add="HTTP/winauth-service.winauth.svc.cluster.local",
+        "HTTP/winauth.example.com",
+        "HTTP/winauth-service"
+}
+
+# SPNの確認
+Get-ADUser svc-winauth-k8s -Properties ServicePrincipalNames | 
+    Select-Object -ExpandProperty ServicePrincipalNames
+```
+
+**重要**: Ingress使用時のSPN設定：
+- `HTTP/winauth.example.com` - メインSPN（Ingressドメイン）
+- `HTTP/auth.company.com` - 追加ドメイン（必要に応じて）
+
+**注意**: K8S内部Service名（`winauth-service.winauth.svc.cluster.local`）のSPNは通常不要です。クライアントはIngress経由でアクセスするため。
+
+### 1.2 Keytabファイルの生成
+
+#### Ingress用のKeytab生成（推奨）
+```cmd
+# ADドメインコントローラーで実行
+# メインドメイン用のKeytab作成
+ktpass -princ HTTP/winauth.example.com@DOMAIN.COM ^
+       -mapuser svc-winauth-k8s@DOMAIN.COM ^
        -crypto AES256-SHA1 ^
        -ptype KRB5_NT_PRINCIPAL ^
        -pass ServiceAccountPassword ^
-       -out adauth.keytab
+       -out winauth.keytab
+
+# 複数ドメインがある場合の追加
+ktpass -princ HTTP/auth.company.com@DOMAIN.COM ^
+       -mapuser svc-winauth-k8s@DOMAIN.COM ^
+       -crypto AES256-SHA1 ^
+       -ptype KRB5_NT_PRINCIPAL ^
+       -pass ServiceAccountPassword ^
+       -out winauth.keytab ^
+       -in winauth.keytab
+
+# --- 参考: K8S内部Service用（通常は不要） ---
+# ktpass -princ HTTP/winauth-service.winauth.svc.cluster.local@DOMAIN.COM ^
+#        -mapuser svc-winauth-k8s@DOMAIN.COM ^
+#        -crypto AES256-SHA1 ^
+#        -ptype KRB5_NT_PRINCIPAL ^
+#        -pass ServiceAccountPassword ^
+#        -out winauth-internal.keytab
+
+# 生成されたKeytabの確認（Windows）
+ktpass -? | findstr keytab
 ```
 
-### 1.3 KeytabファイルをLinuxサーバーに配置
+**注意事項**:
+- 同じサービスアカウントに複数のSPNを紐付ける場合、`-in`オプションで既存のkeytabに追加
+- パスワードは全SPNで同一である必要があります
+- 実際のIngress FQDNに合わせてドメイン名を変更してください
+- K8S内部Service用のSPNは、Pod間直接通信が必要な特殊な場合のみ設定
+
+### 1.3 KeytabファイルをKubernetesに配置
 ```bash
-# Linuxサーバーで実行
-sudo cp adauth.keytab /etc/krb5.keytab
-sudo chmod 600 /etc/krb5.keytab
-sudo chown root:root /etc/krb5.keytab
+# KeytabファイルをSecretとして作成
+kubectl create secret generic kerberos-keytab \
+  --from-file=krb5.keytab=adauth.keytab \
+  -n winauth
+
+# 確認
+kubectl get secret kerberos-keytab -n winauth
 ```
 
-## 2. Linuxサーバー設定
+## 2. Kubernetes環境設定
 
-### 2.1 Kerberos設定ファイル作成
+### 2.1 Namespace作成
 ```bash
-sudo vi /etc/krb5.conf
+kubectl create namespace winauth
 ```
 
-内容：
-```ini
-[libdefaults]
-    default_realm = DOMAIN.COM
-    dns_lookup_realm = false
-    dns_lookup_kdc = false
-    ticket_lifetime = 24h
-    renew_lifetime = 7d
-    forwardable = true
+### 2.2 Kerberos設定ファイル作成（ConfigMap）
+```bash
+# ConfigMapを適用
+kubectl apply -f k8s/configmap.yaml
 
-[realms]
-    DOMAIN.COM = {
-        kdc = dc.domain.com
-        admin_server = dc.domain.com
-        default_domain = domain.com
-    }
-
-[domain_realm]
-    .domain.com = DOMAIN.COM
-    domain.com = DOMAIN.COM
-
-[logging]
-    default = FILE:/var/log/krb5libs.log
-    kdc = FILE:/var/log/krb5kdc.log
-    admin_server = FILE:/var/log/kadmind.log
+# 確認
+kubectl get configmap krb5-config -n winauth -o yaml
 ```
+
+ConfigMapの内容（k8s/configmap.yaml）に含まれる設定：
+- Kerberos設定（krb5.conf）
+- アプリケーション設定（application-kerberos.yaml）
 
 ### 2.2 DNS設定（重要）
 ```bash
@@ -77,26 +193,74 @@ echo "192.168.1.10  dc.domain.com" >> /etc/hosts
 echo "192.168.1.20  your-linux-server.domain.com" >> /etc/hosts
 ```
 
-### 2.3 時刻同期設定
+### 2.3 K8S環境へのデプロイ
+
+#### Secret作成（Keytab）
 ```bash
-# NTPでADドメインコントローラーと時刻同期
+# Keytabファイルをbase64エンコード
+cat adauth.keytab | base64 -w 0 > keytab.b64
+
+# SecretのYAMLを編集して適用
+kubectl apply -f k8s/secret.yaml
+```
+
+#### Deployment適用
+```bash
+# すべてのK8Sリソースを適用
+kubectl apply -f k8s/
+
+# デプロイ状況確認
+kubectl get all -n winauth
+
+# Pod のログ確認
+kubectl logs -f deployment/winauth-server -n winauth
+```
+
+### 2.4 時刻同期設定（K8Sノード）
+```bash
+# 各K8Sノードで実行（重要）
 sudo ntpdate dc.domain.com
 sudo systemctl enable ntp
 ```
 
 ## 3. Spring Boot設定
 
-### 3.1 application-kerberos.properties編集
+### 3.1 K8S環境用の設定
+
+#### ConfigMap経由での設定（k8s/configmap.yaml）
+```yaml
+data:
+  application-kerberos.yaml: |
+    kerberos:
+      # Ingress用のプリンシパル（メイン）
+      principal: HTTP/winauth.example.com@DOMAIN.COM
+      keytab: /etc/krb5/krb5.keytab
+    
+    ad:
+      domain: DOMAIN.COM
+      url: ldap://dc.domain.com:389
+      searchBase: DC=domain,DC=com
+```
+
+#### 環境変数での設定（deployment.yaml）
+```yaml
+env:
+- name: KERBEROS_PRINCIPAL
+  value: "HTTP/winauth.example.com@DOMAIN.COM"
+- name: KERBEROS_KEYTAB
+  value: "/etc/krb5/krb5.keytab"
+```
+
+### 3.2 複数SPN対応（Ingress使用時）
+
+外部アクセス用に複数のSPNをサポートする場合：
+
 ```properties
-# 実際の値に置き換え
-kerberos.principal=HTTP/your-linux-server.domain.com@DOMAIN.COM
-kerberos.keytab=/etc/krb5.keytab
+# プライマリSPN（K8S内部）
+kerberos.principal=HTTP/winauth-service.winauth.svc.cluster.local@DOMAIN.COM
 
-ad.domain=DOMAIN.COM
-ad.url=ldap://dc.domain.com:389
-
-java.security.krb5.realm=DOMAIN.COM
-java.security.krb5.kdc=dc.domain.com
+# 追加SPN（Ingress経由）
+kerberos.additional.spns=HTTP/winauth.example.com@DOMAIN.COM
 ```
 
 ## 4. 認証フローの詳細
