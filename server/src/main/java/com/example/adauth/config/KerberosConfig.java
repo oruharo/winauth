@@ -23,9 +23,17 @@ import org.springframework.security.ldap.authentication.ad.ActiveDirectoryLdapAu
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
 @Configuration
-@EnableWebSecurity
+@EnableWebSecurity  
 @Profile("kerberos")
 public class KerberosConfig extends WebSecurityConfigurerAdapter {
+    
+    // コンストラクタでクラスが読み込まれたことを確認
+    public KerberosConfig() {
+        System.out.println("=== KERBEROS CONFIG INITIALIZED ===");
+        System.out.println("KerberosConfig class loaded successfully");
+        System.out.println("Profile: kerberos");
+        System.out.println("===================================");
+    }
 
     @Value("${kerberos.keytab}")
     private String keytabLocation;

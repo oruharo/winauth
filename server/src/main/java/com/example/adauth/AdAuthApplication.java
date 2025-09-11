@@ -11,6 +11,7 @@ public class AdAuthApplication {
         System.out.println("AdAuth Application Starting...");
         System.out.println("Java Version: " + System.getProperty("java.version"));
         System.out.println("OS: " + System.getProperty("os.name"));
+        System.out.println("Spring Profiles: " + System.getProperty("spring.profiles.active"));
         System.out.println("================================");
         
         SpringApplication.run(AdAuthApplication.class, args);

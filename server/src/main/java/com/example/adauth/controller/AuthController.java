@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
+import org.springframework.core.env.Environment;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @RestController
 @RequestMapping("/api")
@@ -36,6 +38,9 @@ public class AuthController {
 
     @Autowired
     private AuthenticationManager authenticationManager;
+    
+    @Autowired
+    private Environment environment;
 
     @GetMapping("/health")
     public ResponseEntity<String> health() {
@@ -82,10 +87,9 @@ public class AuthController {
     public ResponseEntity<String> kerberosStatus() {
         System.out.println("=== KERBEROS STATUS CHECK ===");
         
-        // プロファイル確認
-        String[] activeProfiles = org.springframework.core.env.Environment.class.isInstance(null) ? 
-            new String[0] : new String[]{"check manually"};
-        System.out.println("Active profile: kerberos (if this endpoint is accessible)");
+        // 実際のプロファイル確認
+        String[] activeProfiles = environment.getActiveProfiles();
+        System.out.println("Active profiles: " + java.util.Arrays.toString(activeProfiles));
         
         // システムプロパティ確認
         System.out.println("java.security.krb5.conf: " + System.getProperty("java.security.krb5.conf"));
