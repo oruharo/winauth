@@ -36,12 +36,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
         String username = loginRequest.getUsername();
-        
-        // DOMAIN\username形式からusernameのみを抽出
-        if (username.contains("\\")) {
-            username = username.substring(username.lastIndexOf("\\") + 1);
-        }
-        
+
         logger.info("Login attempt for user: {} (original: {})", username, loginRequest.getUsername());
         logger.debug("Authentication configuration - AD Domain: {}, AD URL: {}", 
             System.getProperty("ad.domain"), System.getProperty("ad.url"));
