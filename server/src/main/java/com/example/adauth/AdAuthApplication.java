@@ -11,15 +11,19 @@ public class AdAuthApplication {
         System.out.println("AdAuth Application Starting...");
         System.out.println("Java Version: " + System.getProperty("java.version"));
         System.out.println("OS: " + System.getProperty("os.name"));
-        System.out.println("Spring Profiles: " + System.getProperty("spring.profiles.active"));
+        System.out.println("JVM Profile Arg: " + System.getProperty("spring.profiles.active"));
         System.out.println("================================");
         
-        SpringApplication.run(AdAuthApplication.class, args);
+        // SpringApplicationを作成してプロファイルを確認
+        SpringApplication app = new SpringApplication(AdAuthApplication.class);
+        org.springframework.context.ConfigurableApplicationContext context = app.run(args);
         
-        System.out.println("================================");
-        System.out.println("AdAuth Application Started!");
-        System.out.println("Server running on port 8082");
-        System.out.println("================================");
+        String[] activeProfiles = context.getEnvironment().getActiveProfiles();
+        System.out.println("=== SPRING CONTEXT INITIALIZED ===");
+        System.out.println("Active Profiles: " + java.util.Arrays.toString(activeProfiles));
+        System.out.println("===================================");
+        
+
     }
 
 }
