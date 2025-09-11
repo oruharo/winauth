@@ -50,9 +50,26 @@ export const authenticateWithWindows = async (): Promise<AuthResult> => {
   try {
     const response = await apiClient.get('/secure');
     
+    // HTMLレスポンスのチェック
+    if (typeof response.data === 'string' && response.data.includes('<!doctype html>')) {
+      return {
+        success: false,
+        message: 'サーバーからHTMLが返されました。エンドポイントを確認してください。',
+        errorCode: 'HTML_RESPONSE'
+      };
+    }
+    
     return response.data;
   } catch (error: any) {
     if (error.response && error.response.data) {
+      // HTMLレスポンスのチェック
+      if (typeof error.response.data === 'string' && error.response.data.includes('<!doctype html>')) {
+        return {
+          success: false,
+          message: 'サーバーエラー: HTMLページが返されました',
+          errorCode: 'HTML_ERROR_PAGE'
+        };
+      }
       // サーバーからエラーレスポンスが返ってきた場合
       return error.response.data;
     } else if (error.request) {
@@ -78,9 +95,26 @@ export const getAuthInfo = async (): Promise<AuthResult> => {
   try {
     const response = await apiClient.get('/home');
     
+    // HTMLレスポンスのチェック
+    if (typeof response.data === 'string' && response.data.includes('<!doctype html>')) {
+      return {
+        success: false,
+        message: 'サーバーからHTMLが返されました。エンドポイントを確認してください。',
+        errorCode: 'HTML_RESPONSE'
+      };
+    }
+    
     return response.data;
   } catch (error: any) {
     if (error.response && error.response.data) {
+      // HTMLレスポンスのチェック
+      if (typeof error.response.data === 'string' && error.response.data.includes('<!doctype html>')) {
+        return {
+          success: false,
+          message: 'サーバーエラー: HTMLページが返されました',
+          errorCode: 'HTML_ERROR_PAGE'
+        };
+      }
       return error.response.data;
     }
     return {

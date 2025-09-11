@@ -36,6 +36,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         // 認証時のユーザー資格情報を使用
         provider.setUseAuthenticationRequestCredentials(true);
         
+        // ユーザー名の形式を設定（sAMAccountName形式を受け入れる）
+        provider.setSearchFilter("(&(objectClass=user)(sAMAccountName={0}))");
+        
         return provider;
     }
 

@@ -12,6 +12,8 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,6 +22,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/api")
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class AuthController {
+    
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
     @Autowired
     private AuthenticationManager authenticationManager;
@@ -31,10 +35,21 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
+        String username = loginRequest.getUsername();
+        
+        // DOMAIN\username形式からusernameのみを抽出
+        if (username.contains("\\")) {
+            username = username.substring(username.lastIndexOf("\\") + 1);
+        }
+        
+        logger.info("Login attempt for user: {} (original: {})", username, loginRequest.getUsername());
+        logger.debug("Authentication configuration - AD Domain: {}, AD URL: {}", 
+            System.getProperty("ad.domain"), System.getProperty("ad.url"));
+        
         try {
             Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                    loginRequest.getUsername(),
+                    username,
                     loginRequest.getPassword()
                 )
             );
@@ -52,6 +67,8 @@ public class AuthController {
                 roles
             ));
         } catch (AuthenticationException e) {
+            logger.error("Authentication failed for user: {} - Error: {}", 
+                loginRequest.getUsername(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new LoginResponse(
                     false,

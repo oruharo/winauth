@@ -333,10 +333,10 @@ function App() {
             <h2>{result.success ? '成功' : 'エラー'}</h2>
             <p>{result.message}</p>
             
-            {'userInfo' in result && result.userInfo && renderUserInfo(result.userInfo)}
-            {'username' in result && result.username && renderLoginResponse(result as LoginResponse)}
+            {result && typeof result === 'object' && 'userInfo' in result && result.userInfo && renderUserInfo(result.userInfo)}
+            {result && typeof result === 'object' && 'username' in result && result.username && renderLoginResponse(result as LoginResponse)}
             
-            {'errorCode' in result && result.errorCode && (
+            {result && typeof result === 'object' && 'errorCode' in result && result.errorCode && (
               <p className="error-code">エラーコード: {result.errorCode}</p>
             )}
           </div>
