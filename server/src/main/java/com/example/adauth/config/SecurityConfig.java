@@ -55,6 +55,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers("/", "/login", "/error", "/css/**", "/js/**").permitAll()
                 // API公開エンドポイント
                 .antMatchers("/api/health", "/api/login", "/api/user", "/api/test").permitAll()
+                // 全てのAPIエンドポイントを一時的に公開
+                .antMatchers("/api/**").permitAll()
                 // その他は認証必須
                 .anyRequest().authenticated()
                 .and()
