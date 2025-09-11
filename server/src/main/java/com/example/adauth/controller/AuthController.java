@@ -189,9 +189,8 @@ public class AuthController {
                 "User authenticated",
                 username,
                 roles
-            ) {{
-                // 追加の情報があれば設定
-            }});
+            ));
+            } // if文の終了
         }
         
         System.out.println("User not authenticated or anonymous");
