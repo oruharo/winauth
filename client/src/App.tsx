@@ -20,11 +20,14 @@ function App() {
   const [adPassword, setAdPassword] = useState('');
 
   const handleWindowsAuth = async () => {
+    console.log('[App] Windows認証ボタンクリック');
     setLoading(true);
     try {
       const authResult = await authenticateWithWindows();
+      console.log('[App] 認証結果:', authResult);
       setResult(authResult);
     } catch (error) {
+      console.error('[App] Windows認証エラー:', error);
       setResult({
         success: false,
         message: 'Windows認証でエラーが発生しました',

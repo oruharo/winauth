@@ -47,8 +47,10 @@ export interface LoginResponse {
 
 // Windows統合認証のAPI呼び出し
 export const authenticateWithWindows = async (): Promise<AuthResult> => {
+  console.log('[AuthService] Windows統合認証を開始...');
   try {
     const response = await apiClient.get('/secure');
+    console.log('[AuthService] /secure レスポンス:', response);
     
     // HTMLレスポンスのチェック
     if (typeof response.data === 'string' && response.data.includes('<!doctype html>')) {
@@ -59,9 +61,18 @@ export const authenticateWithWindows = async (): Promise<AuthResult> => {
       };
     }
     
+    console.log('[AuthService] Windows認証成功:', response.data);
     return response.data;
   } catch (error: any) {
+    console.error('[AuthService] Windows認証エラー:', error);
+    console.error('[AuthService] エラー詳細:', {
+      response: error.response,
+      request: error.request,
+      message: error.message,
+      config: error.config
+    });
     if (error.response && error.response.data) {
+      console.error('[AuthService] エラーレスポンスデータ:', error.response.data);
       // HTMLレスポンスのチェック
       if (typeof error.response.data === 'string' && error.response.data.includes('<!doctype html>')) {
         return {
