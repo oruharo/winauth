@@ -20,7 +20,6 @@ import org.springframework.security.kerberos.authentication.KerberosServiceAuthe
 import org.springframework.security.kerberos.authentication.sun.SunJaasKerberosTicketValidator;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.ldap.authentication.ad.ActiveDirectoryLdapAuthenticationProvider;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity  
@@ -60,7 +59,6 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
             System.err.println("WARNING: Cannot read keytab file!");
         }
     }
-    private String servicePrincipal;
 
     @Value("${ad.domain}")
     private String adDomain;
