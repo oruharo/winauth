@@ -46,12 +46,36 @@ public class AuthController {
     }
     
     @PostMapping("/test")
-    public ResponseEntity<String> test(@RequestBody(required = false) String body) {
+    public ResponseEntity<String> test(@RequestBody(required = false) String body, HttpServletRequest request) {
         System.out.println("=== TEST ENDPOINT ===");
         System.out.println("Test endpoint called");
         System.out.println("Body: " + body);
+        
+        HttpSession session = request.getSession(false);
+        System.out.println("Test Session ID: " + (session != null ? session.getId() : "null"));
+        
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        System.out.println("Test Authentication: " + (auth != null ? auth.getName() : "null"));
+        
         System.out.println("=====================");
-        return ResponseEntity.ok("Test successful");
+        return ResponseEntity.ok("Test successful - Session: " + (session != null ? session.getId() : "none"));
+    }
+    
+    @PostMapping("/login-and-get-user")
+    public ResponseEntity<?> loginAndGetUser(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
+        System.out.println("=== LOGIN AND GET USER IN ONE REQUEST ===");
+        
+        // ログイン処理
+        ResponseEntity<?> loginResult = authenticateUser(loginRequest, request);
+        
+        if (loginResult.getStatusCode().is2xxSuccessful()) {
+            // 同じリクエスト内でユーザー情報を取得
+            ResponseEntity<?> userResult = getCurrentUser(request);
+            System.out.println("Same request user result: " + userResult.getBody());
+            return userResult;
+        }
+        
+        return loginResult;
     }
 
     @PostMapping("/login")
@@ -128,6 +152,12 @@ public class AuthController {
         HttpSession session = request.getSession(false);
         System.out.println("Session ID: " + (session != null ? session.getId() : "null"));
         System.out.println("Session exists: " + (session != null));
+        System.out.println("Cookie header: " + request.getHeader("Cookie"));
+        System.out.println("JSESSIONID cookie: " + request.getHeader("JSESSIONID"));
+        
+        // 新しいセッションも試行
+        HttpSession newSession = request.getSession(true);
+        System.out.println("New session ID: " + newSession.getId());
         
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         
