@@ -17,6 +17,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
 
 @RestController
 @RequestMapping("/api")
@@ -53,7 +55,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
         String username = loginRequest.getUsername();
         
         // 確実に出力されるログ
@@ -76,6 +78,15 @@ public class AuthController {
             );
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
+            
+            // セッションに認証情報を保存
+            HttpSession session = request.getSession(true);
+            session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
+            
+            System.out.println("=== LOGIN SUCCESS ===");
+            System.out.println("Session ID: " + session.getId());
+            System.out.println("Authentication name: " + authentication.getName());
+            System.out.println("======================");
 
             List<String> roles = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
@@ -108,14 +119,30 @@ public class AuthController {
     }
 
     @GetMapping("/user")
-    public ResponseEntity<?> getCurrentUser() {
+    public ResponseEntity<?> getCurrentUser(HttpServletRequest request) {
         System.out.println("=== GET CURRENT USER ===");
+        
+        // セッション情報を確認
+        HttpSession session = request.getSession(false);
+        System.out.println("Session ID: " + (session != null ? session.getId() : "null"));
+        System.out.println("Session exists: " + (session != null));
+        
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         
         System.out.println("Authentication object: " + authentication);
         System.out.println("Is authenticated: " + (authentication != null ? authentication.isAuthenticated() : "null"));
+        System.out.println("Authentication name: " + (authentication != null ? authentication.getName() : "null"));
+        System.out.println("Authentication class: " + (authentication != null ? authentication.getClass().getSimpleName() : "null"));
+        System.out.println("Principal: " + (authentication != null ? authentication.getPrincipal() : "null"));
+        System.out.println("Principal class: " + (authentication != null && authentication.getPrincipal() != null ? authentication.getPrincipal().getClass().getSimpleName() : "null"));
         
-        if (authentication != null && authentication.isAuthenticated() && !"anonymousUser".equals(authentication.getName())) {
+        if (authentication != null && authentication.isAuthenticated()) {
+            System.out.println("=== AUTHENTICATION DETAILS ===");
+            System.out.println("Name: '" + authentication.getName() + "'");
+            System.out.println("Is anonymous: " + "anonymousUser".equals(authentication.getName()));
+            System.out.println("==============================");
+            
+            if (!"anonymousUser".equals(authentication.getName())) {
             System.out.println("User principal: " + authentication.getPrincipal());
             System.out.println("User name: " + authentication.getName());
             System.out.println("Authorities: " + authentication.getAuthorities());
