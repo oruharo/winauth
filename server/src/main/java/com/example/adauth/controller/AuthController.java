@@ -92,12 +92,14 @@ public class AuthController {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
 
-            return ResponseEntity.ok(new LoginResponse(
+            LoginResponse response = new LoginResponse(
                 true,
-                "Authentication successful",
+                "Authentication successful - Session: " + session.getId(),
                 authentication.getName(),
                 roles
-            ));
+            );
+            
+            return ResponseEntity.ok(response);
         } catch (AuthenticationException e) {
             System.out.println("=== AUTHENTICATION FAILED ===");
             System.out.println("User: " + username);
@@ -128,6 +130,23 @@ public class AuthController {
         System.out.println("Session exists: " + (session != null));
         
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        // セッションから直接認証情報を取得を試行
+        if (session != null) {
+            Object sessionAuth = session.getAttribute("SPRING_SECURITY_CONTEXT");
+            if (sessionAuth instanceof org.springframework.security.core.context.SecurityContext) {
+                org.springframework.security.core.context.SecurityContext securityContext = 
+                    (org.springframework.security.core.context.SecurityContext) sessionAuth;
+                Authentication sessionAuthentication = securityContext.getAuthentication();
+                
+                System.out.println("Session authentication: " + sessionAuthentication);
+                System.out.println("Session auth name: " + (sessionAuthentication != null ? sessionAuthentication.getName() : "null"));
+                
+                if (sessionAuthentication != null && !"anonymousUser".equals(sessionAuthentication.getName())) {
+                    authentication = sessionAuthentication; // セッションの認証情報を使用
+                }
+            }
+        }
         
         System.out.println("Authentication object: " + authentication);
         System.out.println("Is authenticated: " + (authentication != null ? authentication.isAuthenticated() : "null"));
