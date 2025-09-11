@@ -23,6 +23,13 @@ import java.util.stream.Collectors;
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class AuthController {
     
+    // クラス初期化時のログ
+    {
+        System.out.println("=== AuthController INITIALIZED ===");
+        System.out.println("AuthController instance created");
+        System.out.println("===================================");
+    }
+    
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
     @Autowired
@@ -30,7 +37,19 @@ public class AuthController {
 
     @GetMapping("/health")
     public ResponseEntity<String> health() {
+        System.out.println("=== HEALTH CHECK ===");
+        System.out.println("Health endpoint called");
+        System.out.println("====================");
         return ResponseEntity.ok("Server is running");
+    }
+    
+    @PostMapping("/test")
+    public ResponseEntity<String> test(@RequestBody(required = false) String body) {
+        System.out.println("=== TEST ENDPOINT ===");
+        System.out.println("Test endpoint called");
+        System.out.println("Body: " + body);
+        System.out.println("=====================");
+        return ResponseEntity.ok("Test successful");
     }
 
     @PostMapping("/login")
