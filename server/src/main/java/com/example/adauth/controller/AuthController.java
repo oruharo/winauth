@@ -77,6 +77,26 @@ public class AuthController {
         
         return loginResult;
     }
+    
+    @GetMapping("/kerberos-status")
+    public ResponseEntity<String> kerberosStatus() {
+        System.out.println("=== KERBEROS STATUS CHECK ===");
+        
+        // プロファイル確認
+        String[] activeProfiles = org.springframework.core.env.Environment.class.isInstance(null) ? 
+            new String[0] : new String[]{"check manually"};
+        System.out.println("Active profile: kerberos (if this endpoint is accessible)");
+        
+        // システムプロパティ確認
+        System.out.println("java.security.krb5.conf: " + System.getProperty("java.security.krb5.conf"));
+        System.out.println("java.security.krb5.realm: " + System.getProperty("java.security.krb5.realm"));
+        System.out.println("java.security.krb5.kdc: " + System.getProperty("java.security.krb5.kdc"));
+        System.out.println("sun.security.krb5.debug: " + System.getProperty("sun.security.krb5.debug"));
+        
+        System.out.println("=============================");
+        
+        return ResponseEntity.ok("Kerberos configuration status logged to console");
+    }
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {

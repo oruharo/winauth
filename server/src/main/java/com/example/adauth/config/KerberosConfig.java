@@ -1,5 +1,7 @@
 package com.example.adauth.config;
 
+import java.io.File;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +31,27 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
     private String keytabLocation;
 
     @Value("${kerberos.principal}")
+    private String servicePrincipal;
+    
+    // Keytabファイルの存在確認とログ出力
+    private void validateKeytab() {
+        System.out.println("=== KERBEROS KEYTAB VALIDATION ===");
+        System.out.println("Keytab location: " + keytabLocation);
+        System.out.println("Service principal: " + servicePrincipal);
+        
+        File keytabFile = new File(keytabLocation);
+        System.out.println("Keytab file exists: " + keytabFile.exists());
+        System.out.println("Keytab file readable: " + keytabFile.canRead());
+        System.out.println("Keytab file size: " + keytabFile.length() + " bytes");
+        System.out.println("Keytab absolute path: " + keytabFile.getAbsolutePath());
+        System.out.println("==================================");
+        
+        if (!keytabFile.exists()) {
+            System.err.println("WARNING: Keytab file does not exist!");
+        } else if (!keytabFile.canRead()) {
+            System.err.println("WARNING: Cannot read keytab file!");
+        }
+    }
     private String servicePrincipal;
 
     @Value("${ad.domain}")
@@ -67,6 +90,9 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
 
     @Bean
     public KerberosServiceAuthenticationProvider kerberosServiceAuthenticationProvider() {
+        // Keytabファイルの検証を実行
+        validateKeytab();
+        
         KerberosServiceAuthenticationProvider provider = new KerberosServiceAuthenticationProvider();
         provider.setTicketValidator(sunJaasKerberosTicketValidator());
         provider.setUserDetailsService(kerberosUserDetailsService());
