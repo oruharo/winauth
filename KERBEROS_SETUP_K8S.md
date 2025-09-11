@@ -193,7 +193,37 @@ echo "192.168.1.10  dc.domain.com" >> /etc/hosts
 echo "192.168.1.20  your-linux-server.domain.com" >> /etc/hosts
 ```
 
-### 2.3 K8S環境へのデプロイ
+### 2.3 時刻同期の設定（重要）
+
+Kerberos認証では時刻同期が必須です（5分以内の誤差）。
+
+#### Kubernetes Podでの時刻同期
+```yaml
+# deployment.yamlに追加
+spec:
+  containers:
+  - name: winauth
+    env:
+    - name: TZ
+      value: "Asia/Tokyo"  # または適切なタイムゾーン
+```
+
+#### ホストノードの時刻同期確認
+```bash
+# Kubernetesノードで実行
+# NTPサービスの状態確認
+systemctl status chronyd
+# または
+systemctl status systemd-timesyncd
+
+# 時刻同期状態の確認
+timedatectl status
+
+# ドメインコントローラーとの時刻差確認
+ntpdate -q dc.domain.com
+```
+
+### 2.4 K8S環境へのデプロイ
 
 #### Secret作成（Keytab）
 ```bash

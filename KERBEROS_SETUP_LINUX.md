@@ -13,17 +13,70 @@
 
 ### 1.1 サービスアカウントの作成
 
+#### PowerShellでのサービスアカウント作成（推奨）
+```powershell
+# ADドメインコントローラーで実行（管理者権限）
+# Active Directory PowerShellモジュールをインポート
+Import-Module ActiveDirectory
+
+# サービスアカウント作成
+New-ADUser -Name "svc-winauth-linux" `
+  -SamAccountName "svc-winauth-linux" `
+  -UserPrincipalName "svc-winauth-linux@DOMAIN.COM" `
+  -DisplayName "WinAuth Linux Service Account" `
+  -Description "Service account for Linux WinAuth application" `
+  -Path "OU=ServiceAccounts,DC=domain,DC=com" `
+  -AccountPassword (ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force) `
+  -Enabled $true `
+  -PasswordNeverExpires $true `
+  -CannotChangePassword $true
+
+# アカウントの確認
+Get-ADUser svc-winauth-linux -Properties *
+
+# 必要に応じてグループに追加
+Add-ADGroupMember -Identity "Domain Users" -Members svc-winauth-linux
+```
+
+#### コマンドプロンプトでのサービスアカウント作成（代替方法）
 ```cmd
-# Active Directory Users and Computersまたはコマンドプロンプトで実行
+# ADドメインコントローラーで実行
 
 # サービスアカウント作成
 net user svc-winauth-linux Password123! /add /domain
 net user svc-winauth-linux /passwordchg:no /domain
 net user svc-winauth-linux /expires:never /domain
 
+# または dsaddコマンドを使用
+dsadd user "CN=svc-winauth-linux,OU=ServiceAccounts,DC=domain,DC=com" ^
+  -samid svc-winauth-linux ^
+  -upn svc-winauth-linux@DOMAIN.COM ^
+  -fn "WinAuth" ^
+  -ln "Linux Service" ^
+  -display "WinAuth Linux Service Account" ^
+  -desc "Service account for Linux WinAuth application" ^
+  -pwd P@ssw0rd123! ^
+  -pwdneverexpires yes ^
+  -disabled no
+
 # 確認
 net user svc-winauth-linux /domain
+dsquery user -name svc-winauth-linux
 ```
+
+#### GUI（Active Directory ユーザーとコンピューター）での作成
+1. **Active Directory ユーザーとコンピューター**を開く
+2. **ServiceAccounts** OU（または適切なOU）を右クリック
+3. **新規作成** → **ユーザー**
+4. 以下を入力：
+   - 名: `WinAuth`
+   - 姓: `Linux Service`
+   - ユーザーログオン名: `svc-winauth-linux`
+5. パスワード設定：
+   - パスワード: `P@ssw0rd123!`
+   - ☑ パスワードを無期限にする
+   - ☑ ユーザーはパスワードを変更できない
+6. **完了**をクリック
 
 ### 1.2 Service Principal Name (SPN) の設定
 
@@ -39,6 +92,37 @@ setspn -L svc-winauth-linux
 
 # 重複SPNのチェック
 setspn -X
+```
+
+### エラー0x00000525 (ERROR_NO_SUCH_USER) の解決方法
+
+setspnコマンド実行時にこのエラーが発生する場合の解決方法：
+
+#### 方法1: PowerShellを使用（推奨）
+```powershell
+# PowerShellでSPNを設定（エラーが出にくい）
+Set-ADUser -Identity svc-winauth-linux -ServicePrincipalNames @{Add="HTTP/winauth.example.com"}
+
+# 確認
+Get-ADUser svc-winauth-linux -Properties ServicePrincipalNames | Select-Object -ExpandProperty ServicePrincipalNames
+```
+
+#### 方法2: 完全なDistinguished Name (DN)を使用
+```cmd
+# サービスアカウントの完全なDNを取得
+dsquery user -name svc-winauth-linux
+
+# 取得したDNを使用してSPNを設定
+setspn -A HTTP/winauth.example.com "CN=svc-winauth-linux,CN=Users,DC=example,DC=com"
+```
+
+#### 方法3: ドメイン名を明示
+```cmd
+# ドメイン管理者権限で実行
+setspn -A HTTP/winauth.example.com DOMAIN\svc-winauth-linux
+
+# または完全修飾ドメイン名で
+setspn -A HTTP/winauth.example.com svc-winauth-linux@example.com
 ```
 
 #### PowerShellでのSPN設定（推奨）
@@ -58,10 +142,11 @@ Get-ADUser svc-winauth-linux -Properties ServicePrincipalNames |
 
 ```cmd
 # 管理者権限のコマンドプロンプトで実行
-ktpass /out winauth.keytab /princ HTTP/winauth.example.com@EXAMPLE.COM /mapuser svc-winauth-linux /pass Password123! /ptype KRB5_NT_PRINCIPAL
+# メインドメイン用のKeytab作成
+ktpass /out winauth.keytab /princ HTTP/winauth.example.com@EXAMPLE.COM /mapuser svc-winauth-linux /pass Password123! /ptype KRB5_NT_PRINCIPAL /crypto AES256-SHA1
 
 # 追加ドメインがある場合
-ktpass /out winauth-multi.keytab /princ HTTP/auth.company.com@EXAMPLE.COM /mapuser svc-winauth-linux /pass Password123! /ptype KRB5_NT_PRINCIPAL
+ktpass /out winauth-multi.keytab /princ HTTP/auth.company.com@EXAMPLE.COM /mapuser svc-winauth-linux /pass Password123! /ptype KRB5_NT_PRINCIPAL /crypto AES256-SHA1
 ```
 
 #### 複数SPNを含むKeytabの作成
@@ -80,7 +165,7 @@ ktpass /in winauth.keytab /out winauth.keytab /princ HTTP/auth.company.com@EXAMP
 #### Ubuntu/Debian
 ```bash
 sudo apt update
-sudo apt install -y krb5-user krb5-config libpam-krb5 ntpdate
+sudo apt install -y krb5-user libpam-krb5 ntpdate
 ```
 
 #### CentOS/RHEL
@@ -107,41 +192,7 @@ sudo systemctl enable chronyd
 sudo systemctl restart chronyd
 ```
 
-### 2.3 Kerberos設定 (/etc/krb5.conf)
-
-```bash
-sudo tee /etc/krb5.conf > /dev/null <<EOF
-[libdefaults]
-    default_realm = EXAMPLE.COM
-    dns_lookup_realm = false
-    dns_lookup_kdc = false
-    ticket_lifetime = 24h
-    renew_lifetime = 7d
-    forwardable = true
-    proxiable = true
-    default_tkt_enctypes = aes256-cts aes128-cts
-    default_tgs_enctypes = aes256-cts aes128-cts
-    permitted_enctypes = aes256-cts aes128-cts
-
-[realms]
-    EXAMPLE.COM = {
-        kdc = dc.example.com:88
-        admin_server = dc.example.com:749
-        default_domain = example.com
-    }
-
-[domain_realm]
-    .example.com = EXAMPLE.COM
-    example.com = EXAMPLE.COM
-
-[logging]
-    default = FILE:/var/log/krb5libs.log
-    kdc = FILE:/var/log/krb5kdc.log
-    admin_server = FILE:/var/log/kadmind.log
-EOF
-```
-
-### 2.4 Keytabファイルの配置
+### 2.3 Keytabファイルの配置
 
 ```bash
 # アプリケーション用ディレクトリ作成
@@ -155,7 +206,9 @@ sudo chown winauth:winauth /opt/winauth/config/winauth.keytab
 sudo chmod 600 /opt/winauth/config/winauth.keytab
 ```
 
-### 2.5 Kerberos認証テスト
+### 2.4 Kerberos認証テスト（オプション）
+
+**注意**: 以下のテストは`/etc/krb5.conf`設定が必要です。Spring Bootアプリケーションのみ使用する場合はスキップ可能です。
 
 ```bash
 # Keytabファイルの検証
@@ -211,7 +264,6 @@ sudo tee /opt/winauth/start.sh > /dev/null <<'EOF'
 #!/bin/bash
 
 export JAVA_OPTS="
--Djava.security.krb5.conf=/etc/krb5.conf
 -Djava.security.auth.login.config=/opt/winauth/config/jaas.conf
 -Dsun.security.krb5.debug=true
 -Dspring.profiles.active=kerberos
@@ -357,6 +409,33 @@ sudo tail -f /var/log/krb5libs.log
 
 # システムログ
 sudo tail -f /var/log/messages
+
+# Spring Bootのデバッグログ有効化
+export LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=DEBUG
+export LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY_KERBEROS=TRACE
+```
+
+### 7.3 よくあるエラーと解決方法
+
+#### KRB5KDC_ERR_PREAUTH_FAILED
+```bash
+# 原因: パスワード不一致またはアカウントロック
+# 解決: ADでパスワードリセット、アカウントステータス確認
+```
+
+#### KRB5_CC_NOTFOUND
+```bash
+# 原因: Kerberosチケットキャッシュが見つからない
+# 解決: 
+kinit -kt /opt/winauth/config/winauth.keytab HTTP/winauth.example.com@EXAMPLE.COM
+```
+
+#### Clock skew too great
+```bash
+# 原因: 時刻同期の問題
+# 解決:
+sudo ntpdate dc.example.com
+sudo systemctl restart chronyd
 ```
 
 ## 8. セキュリティ考慮事項
