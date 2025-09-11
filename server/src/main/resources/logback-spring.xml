@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- コンソール出力の設定 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 標準出力への直接出力 -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%logger{0}] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ロガーの設定 -->
+    <logger name="com.example.adauth" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+    
+    <logger name="org.springframework.security" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+    
+    <logger name="org.springframework.ldap" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+    
+    <logger name="org.springframework.web" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+
+    <!-- ルートロガー -->
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

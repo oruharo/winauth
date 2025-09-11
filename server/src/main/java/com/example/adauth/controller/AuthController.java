@@ -36,6 +36,13 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
         String username = loginRequest.getUsername();
+        
+        // 確実に出力されるログ
+        System.out.println("=== LOGIN REQUEST START ===");
+        System.out.println("Original username: " + loginRequest.getUsername());
+        System.out.println("Processed username: " + username);
+        System.out.println("Password length: " + (loginRequest.getPassword() != null ? loginRequest.getPassword().length() : "null"));
+        System.out.println("============================");
 
         logger.info("Login attempt for user: {} (original: {})", username, loginRequest.getUsername());
         logger.debug("Authentication configuration - AD Domain: {}, AD URL: {}", 
@@ -62,6 +69,13 @@ public class AuthController {
                 roles
             ));
         } catch (AuthenticationException e) {
+            System.out.println("=== AUTHENTICATION FAILED ===");
+            System.out.println("User: " + username);
+            System.out.println("Error: " + e.getMessage());
+            System.out.println("Exception type: " + e.getClass().getSimpleName());
+            e.printStackTrace();
+            System.out.println("==============================");
+            
             logger.error("Authentication failed for user: {} - Error: {}", 
                 loginRequest.getUsername(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
