@@ -109,21 +109,65 @@ public class AuthController {
 
     @GetMapping("/user")
     public ResponseEntity<?> getCurrentUser() {
+        System.out.println("=== GET CURRENT USER ===");
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         
-        if (authentication != null && authentication.isAuthenticated()) {
+        System.out.println("Authentication object: " + authentication);
+        System.out.println("Is authenticated: " + (authentication != null ? authentication.isAuthenticated() : "null"));
+        
+        if (authentication != null && authentication.isAuthenticated() && !"anonymousUser".equals(authentication.getName())) {
+            System.out.println("User principal: " + authentication.getPrincipal());
+            System.out.println("User name: " + authentication.getName());
+            System.out.println("Authorities: " + authentication.getAuthorities());
+            
+            // ユーザーの詳細情報を取得
+            Object principal = authentication.getPrincipal();
+            String username = authentication.getName();
+            String fullName = null;
+            String domain = null;
+            
+            // プリンシパルからより詳細な情報を抽出
+            if (principal instanceof org.springframework.security.ldap.userdetails.LdapUserDetailsImpl) {
+                org.springframework.security.ldap.userdetails.LdapUserDetailsImpl ldapUser = 
+                    (org.springframework.security.ldap.userdetails.LdapUserDetailsImpl) principal;
+                fullName = ldapUser.getDn();
+                System.out.println("LDAP DN: " + fullName);
+            } else if (principal instanceof org.springframework.security.core.userdetails.User) {
+                org.springframework.security.core.userdetails.User user = 
+                    (org.springframework.security.core.userdetails.User) principal;
+                username = user.getUsername();
+                System.out.println("Spring User: " + username);
+            }
+            
+            // ドメイン情報を推測
+            if (username.contains("@")) {
+                String[] parts = username.split("@");
+                username = parts[0];
+                domain = parts[1];
+            } else if (username.contains("\\")) {
+                String[] parts = username.split("\\\\");
+                if (parts.length > 1) {
+                    domain = parts[0];
+                    username = parts[1];
+                }
+            }
+            
             List<String> roles = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
                 
+            // より詳細なレスポンスを作成
             return ResponseEntity.ok(new LoginResponse(
                 true,
                 "User authenticated",
-                authentication.getName(),
+                username,
                 roles
-            ));
+            ) {{
+                // 追加の情報があれば設定
+            }});
         }
         
+        System.out.println("User not authenticated or anonymous");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
             .body(new LoginResponse(false, "Not authenticated", null, null));
     }
