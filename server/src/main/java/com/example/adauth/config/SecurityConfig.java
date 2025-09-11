@@ -54,7 +54,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 // 公開エンドポイント
                 .antMatchers("/", "/login", "/error", "/css/**", "/js/**").permitAll()
                 // API公開エンドポイント
-                .antMatchers("/api/health", "/api/login").permitAll()
+                .antMatchers("/api/health", "/api/login", "/api/user", "/api/test").permitAll()
                 // その他は認証必須
                 .anyRequest().authenticated()
                 .and()
@@ -71,6 +71,19 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .invalidateHttpSession(true)
                 .deleteCookies("JSESSIONID")
                 .permitAll()
+                .and()
+            .exceptionHandling()
+                .authenticationEntryPoint((request, response, authException) -> {
+                    // API リクエストの場合は JSON で 401 を返す
+                    if (request.getRequestURI().startsWith("/api/")) {
+                        response.setStatus(401);
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"success\":false,\"message\":\"Authentication required\"}");
+                    } else {
+                        // 通常のページリクエストはログインページにリダイレクト
+                        response.sendRedirect("/login");
+                    }
+                })
                 .and()
             .csrf().disable()  // APIのため無効化（本番では要検討）
             .cors();
