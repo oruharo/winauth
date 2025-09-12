@@ -319,15 +319,15 @@ public class AuthController {
             System.out.println("Roles for response: " + roles);
             System.out.println("=================================");
             
-            LoginResponse response = new LoginResponse(
+            LoginResponse loginResponse = new LoginResponse(
                 true,
                 "User authenticated successfully",
                 username,
                 roles
             );
             
-            System.out.println("Returning success response: " + response);
-            return ResponseEntity.ok(response);
+            System.out.println("Returning success response: " + loginResponse);
+            return ResponseEntity.ok(loginResponse);
         }
         
         System.out.println("=== BUILDING UNAUTHORIZED RESPONSE ===");
@@ -336,9 +336,9 @@ public class AuthController {
                                        "Anonymous user"));
         System.out.println("======================================");
         
-        LoginResponse response = new LoginResponse(false, "Not authenticated", null, null);
-        System.out.println("Returning unauthorized response: " + response);
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        LoginResponse loginResponse = new LoginResponse(false, "Not authenticated", null, null);
+        System.out.println("Returning unauthorized response: " + loginResponse);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(loginResponse);
     }
 
     @PostMapping("/logout")
