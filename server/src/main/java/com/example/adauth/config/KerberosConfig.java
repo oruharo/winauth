@@ -1,6 +1,7 @@
 package com.example.adauth.config;
 
 import java.io.File;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -132,6 +133,15 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
             throw new RuntimeException("Failed to create SpnegoAuthenticationProcessingFilter", e);
         }
         return filter;
+    }
+    
+    @Bean
+    public FilterRegistrationBean<NegotiateDebugFilter> negotiateDebugFilter() {
+        FilterRegistrationBean<NegotiateDebugFilter> registrationBean = new FilterRegistrationBean<>();
+        registrationBean.setFilter(new NegotiateDebugFilter());
+        registrationBean.addUrlPatterns("/api/*");
+        registrationBean.setOrder(1); // SPNEGOフィルターより前に実行
+        return registrationBean;
     }
 
     @Override
