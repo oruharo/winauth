@@ -31,15 +31,19 @@ public class CustomSpnegoFilter extends SpnegoAuthenticationProcessingFilter {
         System.out.println("=== CUSTOM SPNEGO FILTER ===");
         System.out.println("URI: " + uri);
         System.out.println("Method: " + httpRequest.getMethod());
-        System.out.println("Authorization header: " + httpRequest.getHeader("Authorization"));
+        String authHeader = httpRequest.getHeader("Authorization");
+        System.out.println("Authorization header: " + (authHeader != null ? authHeader.substring(0, Math.min(50, authHeader.length())) + "..." : "null"));
         System.out.println("============================");
         
         try {
             System.out.println("=== CALLING SUPER.DOFILTER ===");
             System.out.flush();
+            System.err.println("About to call super.doFilter for: " + uri);
+            System.err.flush();
             super.doFilter(request, response, chain);
             System.out.println("SPNEGO filter completed successfully for: " + uri);
-        } catch (Exception e) {
+            System.err.println("Super.doFilter completed without exception for: " + uri);
+        } catch (Throwable e) {
             System.err.println("***** SPNEGO FILTER EXCEPTION *****");
             System.err.println("URI: " + uri);
             System.err.println("Exception type: " + e.getClass().getName());
@@ -55,6 +59,7 @@ public class CustomSpnegoFilter extends SpnegoAuthenticationProcessingFilter {
                 chain.doFilter(request, response);
             } catch (Exception chainException) {
                 System.err.println("Chain continuation also failed: " + chainException.getMessage());
+                chainException.printStackTrace();
                 throw chainException;
             }
         }
