@@ -179,6 +179,29 @@ public class AuthController {
         System.out.println("Cookie header: " + request.getHeader("Cookie"));
         System.out.println("JSESSIONID cookie: " + request.getHeader("JSESSIONID"));
         
+        // Authorization ヘッダーの詳細確認
+        String authHeader = request.getHeader("Authorization");
+        System.out.println("=== AUTHORIZATION HEADER DEBUG ===");
+        System.out.println("Authorization header: " + authHeader);
+        if (authHeader != null) {
+            if (authHeader.startsWith("Negotiate ")) {
+                String token = authHeader.substring("Negotiate ".length());
+                System.out.println("Negotiate token length: " + token.length());
+                System.out.println("Token (first 50 chars): " + (token.length() > 50 ? token.substring(0, 50) + "..." : token));
+            } else {
+                System.out.println("Non-Negotiate auth header: " + authHeader);
+            }
+        } else {
+            System.out.println("No Authorization header found!");
+            System.out.println("Available headers:");
+            java.util.Enumeration<String> headerNames = request.getHeaderNames();
+            while (headerNames.hasMoreElements()) {
+                String headerName = headerNames.nextElement();
+                System.out.println("  " + headerName + ": " + request.getHeader(headerName));
+            }
+        }
+        System.out.println("===================================");
+        
         // 新しいセッションも試行
         HttpSession newSession = request.getSession(true);
         System.out.println("New session ID: " + newSession.getId());
