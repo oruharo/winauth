@@ -35,6 +35,13 @@ public class RequestLoggingConfig {
                 
                 System.out.println("=== INCOMING REQUEST ===");
                 System.out.println("Method: " + httpRequest.getMethod());
+                
+                // Authorization ヘッダーをチェック
+                String authHeader = httpRequest.getHeader("Authorization");
+                if (authHeader != null) {
+                    System.out.println("Authorization: " + (authHeader.length() > 50 ? 
+                        authHeader.substring(0, 50) + "..." : authHeader));
+                }
                 System.out.println("URL: " + httpRequest.getRequestURL());
                 System.out.println("Path: " + httpRequest.getRequestURI());
                 System.out.println("Query: " + httpRequest.getQueryString());

@@ -15,7 +15,13 @@ public class NegotiateDebugFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
         
+        // すべてのリクエストをログ出力
+        System.out.println("=== DEBUG FILTER CALLED ===");
+        System.out.println("URI: " + httpRequest.getRequestURI());
+        System.out.println("Method: " + httpRequest.getMethod());
+        
         String authHeader = httpRequest.getHeader("Authorization");
+        System.out.println("Authorization header: " + authHeader);
         
         if (authHeader != null && authHeader.startsWith("Negotiate ")) {
             System.out.println("=== NEGOTIATE TOKEN DEBUG ===");
@@ -51,6 +57,9 @@ public class NegotiateDebugFilter implements Filter {
             System.out.println("Remote Address: " + httpRequest.getRemoteAddr());
             System.out.println("User Agent: " + httpRequest.getHeader("User-Agent"));
             System.out.println("==============================");
+        } else {
+            System.out.println("No Negotiate header found");
+            System.out.println("============================");
         }
         
         chain.doFilter(request, response);

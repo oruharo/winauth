@@ -139,8 +139,8 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
     public FilterRegistrationBean<NegotiateDebugFilter> negotiateDebugFilter() {
         FilterRegistrationBean<NegotiateDebugFilter> registrationBean = new FilterRegistrationBean<>();
         registrationBean.setFilter(new NegotiateDebugFilter());
-        registrationBean.addUrlPatterns("/api/*");
-        registrationBean.setOrder(1); // SPNEGOフィルターより前に実行
+        registrationBean.addUrlPatterns("/*"); // すべてのパスをキャッチ
+        registrationBean.setOrder(0); // 最優先で実行
         return registrationBean;
     }
 
