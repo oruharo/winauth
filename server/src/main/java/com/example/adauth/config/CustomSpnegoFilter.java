@@ -35,12 +35,28 @@ public class CustomSpnegoFilter extends SpnegoAuthenticationProcessingFilter {
         System.out.println("============================");
         
         try {
+            System.out.println("=== CALLING SUPER.DOFILTER ===");
+            System.out.flush();
             super.doFilter(request, response, chain);
             System.out.println("SPNEGO filter completed successfully for: " + uri);
         } catch (Exception e) {
-            System.err.println("SPNEGO filter exception for " + uri + ": " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            System.err.println("***** SPNEGO FILTER EXCEPTION *****");
+            System.err.println("URI: " + uri);
+            System.err.println("Exception type: " + e.getClass().getName());
+            System.err.println("Exception message: " + e.getMessage());
+            System.err.println("Stack trace:");
             e.printStackTrace();
-            throw e;
+            System.err.println("**********************************");
+            System.err.flush();
+            
+            // エラーの場合でもチェーンを続行してControllerに到達させる
+            try {
+                System.out.println("Continuing filter chain despite SPNEGO error...");
+                chain.doFilter(request, response);
+            } catch (Exception chainException) {
+                System.err.println("Chain continuation also failed: " + chainException.getMessage());
+                throw chainException;
+            }
         }
     }
 }
