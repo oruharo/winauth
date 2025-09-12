@@ -170,128 +170,125 @@ public class AuthController {
 
     @GetMapping("/user")
     public ResponseEntity<?> getCurrentUser(HttpServletRequest request) {
-        System.out.println("=== GET CURRENT USER ===");
+        // 強制的に標準出力に出力（バッファなし）
+        System.out.flush();
+        System.err.flush();
         
-        // セッション情報を確認
-        HttpSession session = request.getSession(false);
-        System.out.println("Session ID: " + (session != null ? session.getId() : "null"));
-        System.out.println("Session exists: " + (session != null));
-        System.out.println("Cookie header: " + request.getHeader("Cookie"));
-        System.out.println("JSESSIONID cookie: " + request.getHeader("JSESSIONID"));
+        System.out.println("=== GET CURRENT USER START ===");
+        System.out.println("Request URI: " + request.getRequestURI());
+        System.out.println("Request method: " + request.getMethod());
+        System.out.println("Remote address: " + request.getRemoteAddr());
+        System.out.println("Thread: " + Thread.currentThread().getName());
+        System.out.println("Timestamp: " + java.time.Instant.now());
+        System.out.println("===============================");
         
-        // Authorization ヘッダーの詳細確認
-        String authHeader = request.getHeader("Authorization");
-        System.out.println("=== AUTHORIZATION HEADER DEBUG ===");
-        System.out.println("Authorization header: " + authHeader);
-        if (authHeader != null) {
-            if (authHeader.startsWith("Negotiate ")) {
-                String token = authHeader.substring("Negotiate ".length());
-                System.out.println("Negotiate token length: " + token.length());
-                System.out.println("Token (first 50 chars): " + (token.length() > 50 ? token.substring(0, 50) + "..." : token));
-            } else {
-                System.out.println("Non-Negotiate auth header: " + authHeader);
-            }
-        } else {
-            System.out.println("No Authorization header found!");
-            System.out.println("Available headers:");
-            java.util.Enumeration<String> headerNames = request.getHeaderNames();
+        // より詳細なヘッダー情報
+        System.out.println("=== ALL REQUEST HEADERS ===");
+        java.util.Enumeration<String> headerNames = request.getHeaderNames();
+        if (headerNames != null) {
             while (headerNames.hasMoreElements()) {
                 String headerName = headerNames.nextElement();
-                System.out.println("  " + headerName + ": " + request.getHeader(headerName));
+                String headerValue = request.getHeader(headerName);
+                System.out.println(headerName + ": " + headerValue);
+                
+                // Authorization ヘッダーの特別処理
+                if ("Authorization".equalsIgnoreCase(headerName)) {
+                    System.out.println("*** AUTHORIZATION HEADER FOUND ***");
+                    System.out.println("Raw value: '" + headerValue + "'");
+                    System.out.println("Length: " + (headerValue != null ? headerValue.length() : 0));
+                    
+                    if (headerValue != null && headerValue.startsWith("Negotiate ")) {
+                        String token = headerValue.substring("Negotiate ".length());
+                        System.out.println("*** NEGOTIATE TOKEN ANALYSIS ***");
+                        System.out.println("Token length: " + token.length());
+                        System.out.println("Token preview: " + (token.length() > 100 ? token.substring(0, 100) + "..." : token));
+                        
+                        // Base64デコードを試行
+                        try {
+                            byte[] decodedToken = java.util.Base64.getDecoder().decode(token);
+                            System.out.println("Decoded token length: " + decodedToken.length + " bytes");
+                            
+                            // 先頭バイトの確認（SPNEGO/GSSAPIトークンの識別）
+                            if (decodedToken.length > 10) {
+                                System.out.print("Token header bytes: ");
+                                for (int i = 0; i < Math.min(16, decodedToken.length); i++) {
+                                    System.out.printf("%02X ", decodedToken[i]);
+                                }
+                                System.out.println();
+                            }
+                        } catch (Exception e) {
+                            System.out.println("Failed to decode Base64 token: " + e.getMessage());
+                        }
+                        System.out.println("*********************************");
+                    }
+                    System.out.println("*********************************");
+                }
             }
+        } else {
+            System.out.println("No headers found!");
         }
-        System.out.println("===================================");
+        System.out.println("============================");
         
-        // 新しいセッションも試行
-        HttpSession newSession = request.getSession(true);
-        System.out.println("New session ID: " + newSession.getId());
-        
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        
-        // セッションから直接認証情報を取得を試行
+        // セッション情報
+        HttpSession session = request.getSession(false);
+        System.out.println("=== SESSION INFO ===");
+        System.out.println("Session exists: " + (session != null));
         if (session != null) {
-            Object sessionAuth = session.getAttribute("SPRING_SECURITY_CONTEXT");
-            if (sessionAuth instanceof org.springframework.security.core.context.SecurityContext) {
-                org.springframework.security.core.context.SecurityContext securityContext = 
-                    (org.springframework.security.core.context.SecurityContext) sessionAuth;
-                Authentication sessionAuthentication = securityContext.getAuthentication();
-                
-                System.out.println("Session authentication: " + sessionAuthentication);
-                System.out.println("Session auth name: " + (sessionAuthentication != null ? sessionAuthentication.getName() : "null"));
-                
-                if (sessionAuthentication != null && !"anonymousUser".equals(sessionAuthentication.getName())) {
-                    authentication = sessionAuthentication; // セッションの認証情報を使用
-                }
-            }
+            System.out.println("Session ID: " + session.getId());
+            System.out.println("Session creation time: " + new java.util.Date(session.getCreationTime()));
+            System.out.println("Session last access: " + new java.util.Date(session.getLastAccessedTime()));
+            System.out.println("Session max inactive: " + session.getMaxInactiveInterval());
+            System.out.println("Session is new: " + session.isNew());
         }
+        System.out.println("===================");
         
+        // 認証情報の詳細確認
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        System.out.println("=== AUTHENTICATION INFO ===");
         System.out.println("Authentication object: " + authentication);
+        System.out.println("Auth class: " + (authentication != null ? authentication.getClass().getName() : "null"));
         System.out.println("Is authenticated: " + (authentication != null ? authentication.isAuthenticated() : "null"));
-        System.out.println("Authentication name: " + (authentication != null ? authentication.getName() : "null"));
-        System.out.println("Authentication class: " + (authentication != null ? authentication.getClass().getSimpleName() : "null"));
         System.out.println("Principal: " + (authentication != null ? authentication.getPrincipal() : "null"));
-        System.out.println("Principal class: " + (authentication != null && authentication.getPrincipal() != null ? authentication.getPrincipal().getClass().getSimpleName() : "null"));
+        System.out.println("Principal class: " + (authentication != null && authentication.getPrincipal() != null ? 
+                                                 authentication.getPrincipal().getClass().getName() : "null"));
+        System.out.println("Name: " + (authentication != null ? authentication.getName() : "null"));
+        System.out.println("Credentials: " + (authentication != null ? authentication.getCredentials() : "null"));
+        System.out.println("Authorities: " + (authentication != null ? authentication.getAuthorities() : "null"));
+        System.out.println("===========================");
         
-        if (authentication != null && authentication.isAuthenticated()) {
-            System.out.println("=== AUTHENTICATION DETAILS ===");
-            System.out.println("Name: '" + authentication.getName() + "'");
-            System.out.println("Is anonymous: " + "anonymousUser".equals(authentication.getName()));
-            System.out.println("==============================");
+        if (authentication != null && authentication.isAuthenticated() && 
+            !"anonymousUser".equals(authentication.getName())) {
             
-            if (!"anonymousUser".equals(authentication.getName())) {
-            System.out.println("User principal: " + authentication.getPrincipal());
-            System.out.println("User name: " + authentication.getName());
-            System.out.println("Authorities: " + authentication.getAuthorities());
-            
-            // ユーザーの詳細情報を取得
-            Object principal = authentication.getPrincipal();
+            System.out.println("=== BUILDING SUCCESS RESPONSE ===");
             String username = authentication.getName();
-            String fullName = null;
-            String domain = null;
-            
-            // プリンシパルからより詳細な情報を抽出
-            if (principal instanceof org.springframework.security.ldap.userdetails.LdapUserDetailsImpl) {
-                org.springframework.security.ldap.userdetails.LdapUserDetailsImpl ldapUser = 
-                    (org.springframework.security.ldap.userdetails.LdapUserDetailsImpl) principal;
-                fullName = ldapUser.getDn();
-                System.out.println("LDAP DN: " + fullName);
-            } else if (principal instanceof org.springframework.security.core.userdetails.User) {
-                org.springframework.security.core.userdetails.User user = 
-                    (org.springframework.security.core.userdetails.User) principal;
-                username = user.getUsername();
-                System.out.println("Spring User: " + username);
-            }
-            
-            // ドメイン情報を推測
-            if (username.contains("@")) {
-                String[] parts = username.split("@");
-                username = parts[0];
-                domain = parts[1];
-            } else if (username.contains("\\")) {
-                String[] parts = username.split("\\\\");
-                if (parts.length > 1) {
-                    domain = parts[0];
-                    username = parts[1];
-                }
-            }
-            
             List<String> roles = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
-                
-            // より詳細なレスポンスを作成
-            return ResponseEntity.ok(new LoginResponse(
+            
+            System.out.println("Username for response: " + username);
+            System.out.println("Roles for response: " + roles);
+            System.out.println("=================================");
+            
+            LoginResponse response = new LoginResponse(
                 true,
-                "User authenticated",
+                "User authenticated successfully",
                 username,
                 roles
-            ));
-            } // if文の終了
+            );
+            
+            System.out.println("Returning success response: " + response);
+            return ResponseEntity.ok(response);
         }
         
-        System.out.println("User not authenticated or anonymous");
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-            .body(new LoginResponse(false, "Not authenticated", null, null));
+        System.out.println("=== BUILDING UNAUTHORIZED RESPONSE ===");
+        System.out.println("Reason: " + (authentication == null ? "No authentication" :
+                                       !authentication.isAuthenticated() ? "Not authenticated" :
+                                       "Anonymous user"));
+        System.out.println("======================================");
+        
+        LoginResponse response = new LoginResponse(false, "Not authenticated", null, null);
+        System.out.println("Returning unauthorized response: " + response);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     @PostMapping("/logout")

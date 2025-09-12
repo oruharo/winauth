@@ -32,6 +32,16 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
         System.out.println("=== KERBEROS CONFIG INITIALIZED ===");
         System.out.println("KerberosConfig class loaded successfully");
         System.out.println("Profile: kerberos");
+        
+        // Kerberosデバッグの有効化
+        System.setProperty("sun.security.krb5.debug", "true");
+        System.setProperty("sun.security.spnego.debug", "true");
+        System.setProperty("java.security.debug", "gssloginconfig,configfile,configparser,logincontext");
+        
+        System.out.println("Kerberos debug properties set:");
+        System.out.println("  sun.security.krb5.debug: " + System.getProperty("sun.security.krb5.debug"));
+        System.out.println("  sun.security.spnego.debug: " + System.getProperty("sun.security.spnego.debug"));
+        System.out.println("  java.security.debug: " + System.getProperty("java.security.debug"));
         System.out.println("===================================");
     }
 
@@ -88,21 +98,37 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
 
     @Bean
     public SunJaasKerberosTicketValidator sunJaasKerberosTicketValidator() {
+        System.out.println("=== CREATING KERBEROS TICKET VALIDATOR ===");
+        System.out.println("Service principal: " + servicePrincipal);
+        System.out.println("Keytab location: " + keytabLocation);
+        
         SunJaasKerberosTicketValidator ticketValidator = new SunJaasKerberosTicketValidator();
         ticketValidator.setServicePrincipal(servicePrincipal);
         ticketValidator.setKeyTabLocation(new FileSystemResource(keytabLocation));
         ticketValidator.setDebug(true);
+        
+        System.out.println("Ticket validator created successfully");
+        System.out.println("==========================================");
+        
         return ticketValidator;
     }
 
     @Bean
     public KerberosServiceAuthenticationProvider kerberosServiceAuthenticationProvider() {
+        System.out.println("=== CREATING KERBEROS SERVICE AUTH PROVIDER ===");
+        
         // Keytabファイルの検証を実行
         validateKeytab();
         
         KerberosServiceAuthenticationProvider provider = new KerberosServiceAuthenticationProvider();
         provider.setTicketValidator(sunJaasKerberosTicketValidator());
         provider.setUserDetailsService(kerberosUserDetailsService());
+        
+        System.out.println("Kerberos service authentication provider created");
+        System.out.println("Ticket validator: " + provider.getTicketValidator());
+        System.out.println("User details service: " + provider.getUserDetailsService());
+        System.out.println("===============================================");
+        
         return provider;
     }
 
@@ -126,12 +152,21 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
 
     @Bean
     public SpnegoAuthenticationProcessingFilter spnegoAuthenticationProcessingFilter() {
+        System.out.println("=== CREATING SPNEGO AUTHENTICATION FILTER ===");
+        
         SpnegoAuthenticationProcessingFilter filter = new SpnegoAuthenticationProcessingFilter();
         try {
             filter.setAuthenticationManager(authenticationManagerBean());
+            System.out.println("SPNEGO filter configured with authentication manager");
         } catch (Exception e) {
+            System.err.println("Failed to create SpnegoAuthenticationProcessingFilter: " + e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException("Failed to create SpnegoAuthenticationProcessingFilter", e);
         }
+        
+        System.out.println("SPNEGO authentication filter created successfully");
+        System.out.println("==============================================");
+        
         return filter;
     }
     
