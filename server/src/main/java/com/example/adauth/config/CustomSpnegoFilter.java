@@ -70,7 +70,6 @@ public class CustomSpnegoFilter extends SpnegoAuthenticationProcessingFilter {
                 System.err.flush();
                 
                 // チェーンの続行に失敗した場合はレスポンスを直接書き込む
-                HttpServletResponse httpResponse = (HttpServletResponse) response;
                 httpResponse.setStatus(401);
                 httpResponse.setContentType("application/json");
                 httpResponse.getWriter().write("{\"success\":false,\"message\":\"SPNEGO authentication failed\"}");
