@@ -190,17 +190,31 @@ public class AuthController {
     }
 
     @GetMapping("/user")
-    public ResponseEntity<?> getCurrentUser(HttpServletRequest request) {
-        // 最優先で確実に出力されるログ（複数回出力）
-        System.err.println("***** GET CURRENT USER CALLED *****");
-        System.err.println("***** GET CURRENT USER CALLED *****");
+    public ResponseEntity<?> getCurrentUser(HttpServletRequest request, HttpServletResponse response) {
+        // 最優先で確実に出力されるログ
         System.err.println("***** GET CURRENT USER CALLED *****");
         System.err.flush();
         
         System.out.println("***** GET CURRENT USER CALLED *****");
-        System.out.println("***** GET CURRENT USER CALLED *****");
-        System.out.println("***** GET CURRENT USER CALLED *****");
         System.out.flush();
+        
+        // Authorizationヘッダーの確認
+        String authHeader = request.getHeader("Authorization");
+        System.out.println("Authorization header check: " + (authHeader != null ? "Present" : "Missing"));
+        
+        if (authHeader == null || !authHeader.startsWith("Negotiate ")) {
+            System.out.println("=== REQUESTING NEGOTIATE AUTHENTICATION ===");
+            System.out.println("No Negotiate header found, sending 401 + WWW-Authenticate");
+            System.out.println("===========================================");
+            
+            // Negotiate認証を明示的に要求
+            response.setStatus(401);
+            response.setHeader("WWW-Authenticate", "Negotiate");
+            
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                new LoginResponse(false, "Negotiate authentication required", null, null)
+            );
+        }
         System.err.println("***** TIMESTAMP: " + System.currentTimeMillis() + " *****");
         System.err.println("***** THREAD: " + Thread.currentThread().getName() + " *****");
         System.err.flush();
