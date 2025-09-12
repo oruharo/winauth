@@ -54,13 +54,27 @@ public class CustomSpnegoFilter extends SpnegoAuthenticationProcessingFilter {
             System.err.flush();
             
             // エラーの場合でもチェーンを続行してControllerに到達させる
+            System.err.println("***** ATTEMPTING TO CONTINUE FILTER CHAIN *****");
+            System.err.flush();
             try {
                 System.out.println("Continuing filter chain despite SPNEGO error...");
+                System.out.flush();
                 chain.doFilter(request, response);
+                System.out.println("Filter chain continuation successful!");
             } catch (Exception chainException) {
-                System.err.println("Chain continuation also failed: " + chainException.getMessage());
+                System.err.println("***** FILTER CHAIN CONTINUATION FAILED *****");
+                System.err.println("Chain continuation exception: " + chainException.getClass().getName());
+                System.err.println("Chain continuation message: " + chainException.getMessage());
                 chainException.printStackTrace();
-                throw chainException;
+                System.err.println("********************************************");
+                System.err.flush();
+                
+                // チェーンの続行に失敗した場合はレスポンスを直接書き込む
+                HttpServletResponse httpResponse = (HttpServletResponse) response;
+                httpResponse.setStatus(401);
+                httpResponse.setContentType("application/json");
+                httpResponse.getWriter().write("{\"success\":false,\"message\":\"SPNEGO authentication failed\"}");
+                return; // throw しない
             }
         }
     }
