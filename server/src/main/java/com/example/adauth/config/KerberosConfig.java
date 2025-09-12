@@ -125,8 +125,8 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
         provider.setUserDetailsService(kerberosUserDetailsService());
         
         System.out.println("Kerberos service authentication provider created");
-        System.out.println("Ticket validator: " + provider.getTicketValidator());
-        System.out.println("User details service: " + provider.getUserDetailsService());
+        System.out.println("Ticket validator set successfully");
+        System.out.println("User details service set successfully");
         System.out.println("===============================================");
         
         return provider;
