@@ -151,22 +151,22 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public SpnegoAuthenticationProcessingFilter spnegoAuthenticationProcessingFilter() {
-        System.out.println("=== CREATING SPNEGO AUTHENTICATION FILTER ===");
+    public CustomSpnegoFilter spnegoAuthenticationProcessingFilter() {
+        System.out.println("=== CREATING CUSTOM SPNEGO AUTHENTICATION FILTER ===");
         
-        SpnegoAuthenticationProcessingFilter filter = new SpnegoAuthenticationProcessingFilter();
+        CustomSpnegoFilter filter;
         try {
-            filter.setAuthenticationManager(authenticationManagerBean());
-            System.out.println("SPNEGO filter configured with authentication manager");
+            filter = new CustomSpnegoFilter(authenticationManagerBean());
+            System.out.println("Custom SPNEGO filter configured with authentication manager");
             
         } catch (Exception e) {
-            System.err.println("Failed to create SpnegoAuthenticationProcessingFilter: " + e.getMessage());
+            System.err.println("Failed to create CustomSpnegoFilter: " + e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("Failed to create SpnegoAuthenticationProcessingFilter", e);
+            throw new RuntimeException("Failed to create CustomSpnegoFilter", e);
         }
         
-        System.out.println("SPNEGO authentication filter created successfully");
-        System.out.println("==============================================");
+        System.out.println("Custom SPNEGO authentication filter created successfully");
+        System.out.println("======================================================");
         
         return filter;
     }
@@ -201,6 +201,13 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
                 // その他は認証必須
                 .anyRequest().authenticated()
                 .and()
+            // リクエストログフィルターを最初に追加
+            .addFilterBefore((request, response, chain) -> {
+                javax.servlet.http.HttpServletRequest httpRequest = (javax.servlet.http.HttpServletRequest) request;
+                System.err.println("***** REQUEST FILTER: " + httpRequest.getRequestURI() + " *****");
+                System.err.flush();
+                chain.doFilter(request, response);
+            }, org.springframework.security.web.context.SecurityContextPersistenceFilter.class)
             // SPNEGO認証フィルターを追加
             .addFilterBefore(spnegoAuthenticationProcessingFilter(), BasicAuthenticationFilter.class)
             .exceptionHandling()

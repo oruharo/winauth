@@ -15,9 +15,13 @@ public class NegotiateDebugFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
         
-        // /api/userのみをデバッグ対象とする
+        // すべてのリクエストをログ出力（一時的にフィルター無効化）
         String requestURI = httpRequest.getRequestURI();
+        System.err.println("***** NEGOTIATE DEBUG FILTER: " + requestURI + " *****");
+        System.err.flush();
+        
         if (!requestURI.startsWith("/api/user")) {
+            System.out.println("Skipping debug for: " + requestURI);
             chain.doFilter(request, response);
             return;
         }
