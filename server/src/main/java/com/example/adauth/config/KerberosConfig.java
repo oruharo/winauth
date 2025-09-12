@@ -201,10 +201,8 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
                 // その他は認証必須
                 .anyRequest().authenticated()
                 .and()
-            // SPNEGO認証フィルターを特定のパスにのみ追加
-            .requestMatchers(request -> request.getRequestURI().startsWith("/api/user"))
-                .addFilterBefore(spnegoAuthenticationProcessingFilter(), BasicAuthenticationFilter.class)
-                .and()
+            // SPNEGO認証フィルターを追加
+            .addFilterBefore(spnegoAuthenticationProcessingFilter(), BasicAuthenticationFilter.class)
             .exceptionHandling()
                 .authenticationEntryPoint(spnegoEntryPoint())
                 .and()
