@@ -44,10 +44,31 @@ public class AuthController {
 
     @GetMapping("/health")
     public ResponseEntity<String> health() {
+        System.err.println("***** HEALTH ENDPOINT CALLED *****");
+        System.err.flush();
         System.out.println("=== HEALTH CHECK ===");
         System.out.println("Health endpoint called");
+        System.out.println("Timestamp: " + java.time.Instant.now());
+        System.out.println("Thread: " + Thread.currentThread().getName());
         System.out.println("====================");
-        return ResponseEntity.ok("Server is running");
+        System.out.flush();
+        return ResponseEntity.ok("Server is running - " + java.time.Instant.now());
+    }
+    
+    @GetMapping("/debug-test")
+    public ResponseEntity<String> debugTest() {
+        System.err.println("***** DEBUG TEST ENDPOINT CALLED *****");
+        System.err.flush();
+        
+        System.out.println("=== DEBUG TEST ===");
+        System.out.println("System.out working");
+        System.out.flush();
+        
+        logger.info("Logger info working");
+        logger.debug("Logger debug working"); 
+        logger.error("Logger error working");
+        
+        return ResponseEntity.ok("Debug test completed - check console");
     }
     
     @PostMapping("/test")
@@ -170,6 +191,12 @@ public class AuthController {
 
     @GetMapping("/user")
     public ResponseEntity<?> getCurrentUser(HttpServletRequest request) {
+        // 最優先で確実に出力されるログ
+        System.err.println("***** GET CURRENT USER CALLED *****");
+        System.err.println("***** TIMESTAMP: " + System.currentTimeMillis() + " *****");
+        System.err.println("***** THREAD: " + Thread.currentThread().getName() + " *****");
+        System.err.flush();
+        
         // 強制的に標準出力に出力（バッファなし）
         System.out.flush();
         System.err.flush();
