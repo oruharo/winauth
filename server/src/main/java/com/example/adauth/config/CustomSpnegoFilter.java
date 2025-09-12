@@ -25,6 +25,26 @@ public class CustomSpnegoFilter extends SpnegoAuthenticationProcessingFilter {
         HttpServletResponse httpResponse = (HttpServletResponse) response;
         
         String uri = httpRequest.getRequestURI();
+        
+        // /api/userの場合は一旦SPNEGOをスキップして直接Controllerに到達させる
+        if (uri.equals("/api/user")) {
+            System.err.println("***** BYPASSING SPNEGO FOR DEBUG: " + uri + " *****");
+            System.err.flush();
+            
+            System.out.println("=== BYPASSING SPNEGO FILTER FOR DEBUG ===");
+            System.out.println("URI: " + uri);
+            String authHeader = httpRequest.getHeader("Authorization");
+            System.out.println("Authorization header present: " + (authHeader != null));
+            if (authHeader != null) {
+                System.out.println("Auth header preview: " + authHeader.substring(0, Math.min(50, authHeader.length())) + "...");
+            }
+            System.out.println("Calling chain.doFilter directly...");
+            System.out.println("=========================================");
+            
+            // SPNEGOフィルターをスキップして直接チェーンを続行
+            chain.doFilter(request, response);
+            return;
+        }
         System.err.println("***** CUSTOM SPNEGO FILTER: " + uri + " *****");
         System.err.flush();
         
