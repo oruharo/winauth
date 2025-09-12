@@ -97,7 +97,7 @@ public class AuthController {
         
         if (loginResult.getStatusCode().is2xxSuccessful()) {
             // 同じリクエスト内でユーザー情報を取得
-            ResponseEntity<?> userResult = getCurrentUser(request);
+            ResponseEntity<?> userResult = getCurrentUser(request, null);
             System.out.println("Same request user result: " + userResult.getBody());
             return userResult;
         }
