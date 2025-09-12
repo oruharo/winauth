@@ -158,6 +158,11 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
         try {
             filter.setAuthenticationManager(authenticationManagerBean());
             System.out.println("SPNEGO filter configured with authentication manager");
+            
+            // 特定のエンドポイントを除外
+            filter.setFilterProcessesUrl("/api/user");  // 特定のパスのみ処理
+            System.out.println("SPNEGO filter set to process URL: /api/user");
+            
         } catch (Exception e) {
             System.err.println("Failed to create SpnegoAuthenticationProcessingFilter: " + e.getMessage());
             e.printStackTrace();
@@ -174,7 +179,7 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
     public FilterRegistrationBean<NegotiateDebugFilter> negotiateDebugFilter() {
         FilterRegistrationBean<NegotiateDebugFilter> registrationBean = new FilterRegistrationBean<>();
         registrationBean.setFilter(new NegotiateDebugFilter());
-        registrationBean.addUrlPatterns("/*"); // すべてのパスをキャッチ
+        registrationBean.addUrlPatterns("/api/user"); // /api/userのみに限定
         registrationBean.setOrder(0); // 最優先で実行
         return registrationBean;
     }
@@ -193,8 +198,10 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
             .authorizeRequests()
                 // 公開エンドポイント
                 .antMatchers("/", "/login", "/error", "/css/**", "/js/**").permitAll()
-                // API公開エンドポイント
-                .antMatchers("/api/health", "/api/login").permitAll()
+                // API公開エンドポイント（認証不要）
+                .antMatchers("/api/health", "/api/debug-test", "/api/login").permitAll()
+                // その他のAPIは認証必須
+                .antMatchers("/api/**").authenticated()
                 // その他は認証必須
                 .anyRequest().authenticated()
                 .and()
