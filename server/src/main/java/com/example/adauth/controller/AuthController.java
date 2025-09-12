@@ -191,8 +191,16 @@ public class AuthController {
 
     @GetMapping("/user")
     public ResponseEntity<?> getCurrentUser(HttpServletRequest request) {
-        // 最優先で確実に出力されるログ
+        // 最優先で確実に出力されるログ（複数回出力）
         System.err.println("***** GET CURRENT USER CALLED *****");
+        System.err.println("***** GET CURRENT USER CALLED *****");
+        System.err.println("***** GET CURRENT USER CALLED *****");
+        System.err.flush();
+        
+        System.out.println("***** GET CURRENT USER CALLED *****");
+        System.out.println("***** GET CURRENT USER CALLED *****");
+        System.out.println("***** GET CURRENT USER CALLED *****");
+        System.out.flush();
         System.err.println("***** TIMESTAMP: " + System.currentTimeMillis() + " *****");
         System.err.println("***** THREAD: " + Thread.currentThread().getName() + " *****");
         System.err.flush();

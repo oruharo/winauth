@@ -195,7 +195,7 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
                 // 公開エンドポイント
                 .antMatchers("/", "/login", "/error", "/css/**", "/js/**").permitAll()
                 // API公開エンドポイント（認証不要）
-                .antMatchers("/api/health", "/api/debug-test", "/api/login").permitAll()
+                .antMatchers("/api/health", "/api/debug-test", "/api/login", "/api/user").permitAll()
                 // その他のAPIは認証必須
                 .antMatchers("/api/**").authenticated()
                 // その他は認証必須
@@ -206,7 +206,18 @@ public class KerberosConfig extends WebSecurityConfigurerAdapter {
                 javax.servlet.http.HttpServletRequest httpRequest = (javax.servlet.http.HttpServletRequest) request;
                 System.err.println("***** REQUEST FILTER: " + httpRequest.getRequestURI() + " *****");
                 System.err.flush();
+                
+                if (httpRequest.getRequestURI().equals("/api/user")) {
+                    System.err.println("***** /api/user REQUEST - FORCING THROUGH *****");
+                    System.err.flush();
+                }
+                
                 chain.doFilter(request, response);
+                
+                if (httpRequest.getRequestURI().equals("/api/user")) {
+                    System.err.println("***** REQUEST FILTER COMPLETED FOR /api/user *****");
+                    System.err.flush();
+                }
             }, org.springframework.security.web.context.SecurityContextPersistenceFilter.class)
             // SPNEGO認証フィルターを追加
             .addFilterBefore(spnegoAuthenticationProcessingFilter(), BasicAuthenticationFilter.class)
