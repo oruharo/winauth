@@ -302,8 +302,7 @@ configure-browser-kerberos: check-ssh-key setup-ansible-collections run-playbook
 configure-browser-kerberos-new: PLAYBOOK = configure-browser-kerberos-new.yml
 configure-browser-kerberos-new: check-ssh-key setup-ansible-collections run-playbook ## Configure browser for Kerberos (new version)
 
-deploy-linux: PLAYBOOK = deploy-linux.yml
-deploy-linux: check-ssh-key setup-ansible-collections run-playbook ## Deploy Linux application
+# deploy-linux is defined later in the Combined Deployment section
 
 setup-alb-target-groups: PLAYBOOK = setup-alb-target-groups.yml
 setup-alb-target-groups: check-ssh-key setup-ansible-collections run-playbook ## Setup ALB target groups
