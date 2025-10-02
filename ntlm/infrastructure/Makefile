@@ -72,6 +72,7 @@ ifndef USER_PASSWORD
 endif
 	@echo "# Auto-generated configuration" > .env
 	@echo "KEY_NAME=$(KEY_NAME)" >> .env
+	@echo "SSH_KEY_PATH=$(SSH_KEY_PATH)" >> .env
 	@echo "ADMIN_PASSWORD=$(ADMIN_PASSWORD)" >> .env
 	@echo "USER_PASSWORD=$(USER_PASSWORD)" >> .env
 	@echo "PREFIX=$(PREFIX)" >> .env
@@ -165,8 +166,8 @@ get-cloudformation-outputs: get-stack-name
 	@echo "  ALB DNS:           $(ALB_DNS_NAME)"
 	@echo ""
 	@echo "$(YELLOW)接続URL:$(NC)"
-	@echo "  WinAuth App:       http://$(LINUX_PUBLIC_IP):8082"
-	@echo "  WinAuth via ALB:   http://$(ALB_DNS_NAME)"
+	@echo "  WinAuth App:       https://$(LINUX_PUBLIC_IP):8082"
+	@echo "  WinAuth via ALB:   https://$(ALB_DNS_NAME)"
 	@echo ""
 	@echo "$(YELLOW)RDP接続 (ユーザー: Administrator):$(NC)"
 	@echo "  DC1:               rdp://$(DC1_IP)"

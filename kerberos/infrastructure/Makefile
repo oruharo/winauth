@@ -38,28 +38,20 @@ export HTTPS_PROXY =
 ##---------------------------------------------------------------------
 .PHONY: help
 help: ## ヘルプメッセージを表示
-	@awk 'BEGIN {FS = ":.*##"; printf "
-[34mAWS Kerberos環境 アプリケーション設定 Makefile[0m
-
-Usage:
-  make [36m<target>[0m KEY_NAME=<keypair> ADMIN_PASSWORD=<pass> USER_PASSWORD=<pass>
-"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  [36m%-20s[0m %s
-", $$1, $$2 } /^##@/ { printf "
-[1m%s[0m
-", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\n\033[34mAWS KEREBEROS環境 アプリケーション設定 Makefile\033[0m\n\nUsage:\n  make \033[36m<target>\033[0m KEY_NAME=<keypair> ADMIN_PASSWORD=<pass> USER_PASSWORD=<pass>\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 	@echo ""
-	@echo "[33m必須パラメータ:[0m"
+	@echo "\033[33m必須パラメータ:\033[0m"
 	@echo "  KEY_NAME          AWS KeyPair名"
 	@echo "  ADMIN_PASSWORD    Administrator パスワード"
 	@echo "  USER_PASSWORD     ユーザーパスワード"
 	@echo ""
-	@echo "[33mオプション:[0m"
+	@echo "\033[33mオプション:\033[0m"
 	@echo "  PREFIX=KrbTest      スタックプレフィックス"
 	@echo "  SSH_KEY_PATH        SSH秘密鍵パス (デフォルト: ~/.ssh/KEY_NAME.pem)"
 	@echo "  SERVICE_PASSWORD    サービスアカウントパスワード (デフォルト: DefaultServicePass123!)"
 	@echo "  TRUST_PASSWORD      ドメイン信頼パスワード (デフォルト: DefaultTrustPass123!)"
 	@echo ""
-	@echo "[33m設定の保存:[0m"
+	@echo "\033[33m設定の保存:\033[0m"
 	@echo "  make save-config    現在のパラメータを保存（次回以降は省略可能）"
 	@echo "  make show-config    保存された設定を表示"
 
@@ -81,6 +73,7 @@ ifndef USER_PASSWORD
 endif
 	@echo "# Auto-generated configuration" > .env
 	@echo "KEY_NAME=$(KEY_NAME)" >> .env
+	@echo "SSH_KEY_PATH=$(SSH_KEY_PATH)" >> .env
 	@echo "ADMIN_PASSWORD=$(ADMIN_PASSWORD)" >> .env
 	@echo "USER_PASSWORD=$(USER_PASSWORD)" >> .env
 	@echo "PREFIX=$(PREFIX)" >> .env
@@ -175,8 +168,8 @@ get-cloudformation-outputs: get-stack-name
 	@echo "  ALB DNS:           $(ALB_DNS_NAME)"
 	@echo ""
 	@echo "$(YELLOW)接続URL:$(NC)"
-	@echo "  WinAuth App:       http://$(LINUX_PUBLIC_IP):8082"
-	@echo "  WinAuth via ALB:   http://$(ALB_DNS_NAME)"
+	@echo "  WinAuth App:       https://$(LINUX_PUBLIC_IP):8082"
+	@echo "  WinAuth via ALB:   https://$(ALB_DNS_NAME)"
 	@echo ""
 	@echo "$(YELLOW)RDP接続 (ユーザー: Administrator):$(NC)"
 	@echo "  DC1:               rdp://$(DC1_IP)"
