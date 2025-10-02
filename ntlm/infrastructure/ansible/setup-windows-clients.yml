@@ -1,0 +1,36 @@
+---
+- name: Setup Windows Clients
+  hosts: windows_clients
+  gather_facts: no
+  
+  tasks:
+    
+    - name: Set DNS server to domain controller
+      win_dns_client:
+        adapter_names: '*'
+        ipv4_addresses: "{{ domain_controller }}"
+        
+    - name: Wait for DNS to propagate
+      pause:
+        seconds: 30
+        
+    - name: Join domain
+      microsoft.ad.membership:
+        dns_domain_name: "{{ target_domain }}"
+        hostname: "{{ inventory_hostname | upper }}"
+        domain_admin_user: "Administrator@{{ target_domain }}"
+        domain_admin_password: "{{ admin_password }}"
+        state: domain
+      register: domain_join_result
+      
+    - name: Reboot after domain join
+      win_reboot:
+        reboot_timeout: 600
+      when: domain_join_result.reboot_required
+      
+    - name: Add domain user to Remote Desktop Users group
+      win_group_membership:
+        name: "Remote Desktop Users"
+        members:
+          - "{{ target_domain | regex_replace('\\..*$', '') }}\\{{ domain_user }}"
+        state: present

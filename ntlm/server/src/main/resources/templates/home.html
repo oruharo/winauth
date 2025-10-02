@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Home - AD Auth</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .user-info {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .info-item {
+            margin-bottom: 10px;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+        .authorities {
+            margin-top: 10px;
+        }
+        .authority {
+            display: inline-block;
+            padding: 4px 8px;
+            background-color: #e9ecef;
+            border-radius: 3px;
+            margin-right: 5px;
+            font-size: 14px;
+        }
+        .logout-form {
+            margin-top: 20px;
+        }
+        .button {
+            padding: 10px 20px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #c82333;
+        }
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>認証成功</h1>
+        
+        <div class="success-message">
+            Active Directory認証が成功しました。
+        </div>
+        
+        <div class="user-info">
+            <div class="info-item">
+                <span class="info-label">ユーザー名:</span>
+                <span th:text="${username}">username</span>
+            </div>
+            
+            <div class="info-item">
+                <span class="info-label">権限:</span>
+                <div class="authorities">
+                    <span class="authority" th:each="authority : ${authorities}" 
+                          th:text="${authority}">ROLE</span>
+                </div>
+            </div>
+        </div>
+        
+        <form th:action="@{/logout}" method="post" class="logout-form">
+            <button type="submit" class="button">ログアウト</button>
+        </form>
+    </div>
+</body>
+</html>

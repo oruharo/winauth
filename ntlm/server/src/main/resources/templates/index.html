@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>AD Auth Server</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section h2 {
+            color: #555;
+            margin-bottom: 15px;
+        }
+        .endpoint {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-family: monospace;
+        }
+        .method {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .get { background-color: #61affe; color: white; }
+        .post { background-color: #49cc90; color: white; }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #0066cc;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #0052a3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Active Directory Authentication Server</h1>
+        <p>ドメイン非参加環境でのAD認証サーバー</p>
+        
+        <div class="section">
+            <h2>Web Interface</h2>
+            <p><a href="/login" class="button">ログインページへ</a></p>
+        </div>
+        
+        <div class="section">
+            <h2>API Endpoints</h2>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span> /api/health
+                <p>サーバーのヘルスチェック</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span> /api/login
+                <p>AD認証を実行</p>
+                <pre>{
+  "username": "domain\\username",
+  "password": "password"
+}</pre>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span> /api/user
+                <p>現在のユーザー情報を取得</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span> /api/logout
+                <p>ログアウト</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Configuration</h2>
+            <p>application.propertiesで以下を設定してください：</p>
+            <pre>ad.domain=YOUR_DOMAIN.LOCAL
+ad.url=ldap://YOUR_AD_SERVER:389</pre>
+        </div>
+    </div>
+</body>
+</html>

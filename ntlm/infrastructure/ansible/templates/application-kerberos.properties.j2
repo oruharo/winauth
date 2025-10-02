@@ -1,0 +1,16 @@
+# Server Configuration
+server.port=8082
+# server.servlet.context-path=/api  # ALBとの重複回避のためコメントアウト
+
+# Kerberos Configuration - RC4 and AES encryption enabled
+kerberos.principal=${KERBEROS_PRINCIPAL:HTTP/{{ alb_dns_name | default(app_hostname) }}@{{ primary_realm }}}
+kerberos.keytab=${KERBEROS_KEYTAB:{{ keytab_dir }}/winauth-combined.keytab}
+kerberos.debug=true
+
+# Cross-origin configuration
+cors.allowed-origins=https://{{ alb_dns_name | default(app_hostname) }},https://{{ app_hostname }},http://localhost:5173
+
+# Logging
+logging.level.com.example.adauth=DEBUG
+logging.level.org.springframework.security=DEBUG
+logging.level.org.springframework.security.kerberos=TRACE
