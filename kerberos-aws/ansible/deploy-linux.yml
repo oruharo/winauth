@@ -112,6 +112,11 @@
         enabled: yes
         daemon_reload: yes
     
+    - name: Remove old WinAuth source directory (clean build)
+      file:
+        path: "{{ app_dir }}/source"
+        state: absent
+
     - name: Create WinAuth source directory
       file:
         path: "{{ app_dir }}/source"
@@ -193,12 +198,21 @@
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0644'
+
+    - name: Create NTLM application configuration
+      template:
+        src: application-ntlm.properties.j2
+        dest: "{{ app_dir }}/application-ntlm.properties"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0644'
   
-    - name: Start WinAuth server service
+    - name: Restart WinAuth server service
       systemd:
         name: winauth
-        state: started
+        state: restarted
         enabled: yes
+        daemon_reload: yes
 
 
 

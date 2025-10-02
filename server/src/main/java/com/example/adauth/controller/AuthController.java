@@ -16,12 +16,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import org.springframework.core.env.Environment;
 import org.springframework.beans.factory.annotation.Autowired;
+// NTLM support temporarily disabled
 
 @RestController
 @RequestMapping("/api")
@@ -37,9 +40,9 @@ public class AuthController {
     
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
-    @Autowired
+    @Autowired(required = false)
     private AuthenticationManager authenticationManager;
-    
+
     @Autowired
     private Environment environment;
 
@@ -136,9 +139,19 @@ public class AuthController {
         System.out.println("============================");
 
         logger.info("Login attempt for user: {} (original: {})", username, loginRequest.getUsername());
-        logger.debug("Authentication configuration - AD Domain: {}, AD URL: {}", 
+        logger.debug("Authentication configuration - AD Domain: {}, AD URL: {}",
             System.getProperty("ad.domain"), System.getProperty("ad.url"));
-        
+
+        if (authenticationManager == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new LoginResponse(
+                    false,
+                    "Authentication not available in current profile",
+                    null,
+                    null
+                ));
+        }
+
         try {
             Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -198,24 +211,6 @@ public class AuthController {
         
         System.out.println("***** GET CURRENT USER CALLED *****");
         System.out.flush();
-        
-        // Authorizationヘッダーの確認
-        String authHeader = request.getHeader("Authorization");
-        System.out.println("Authorization header check: " + (authHeader != null ? "Present" : "Missing"));
-        
-        if (authHeader == null || !authHeader.startsWith("Negotiate ")) {
-            System.out.println("=== REQUESTING NEGOTIATE AUTHENTICATION ===");
-            System.out.println("No Negotiate header found, sending 401 + WWW-Authenticate");
-            System.out.println("===========================================");
-            
-            // Negotiate認証を明示的に要求
-            response.setStatus(401);
-            response.setHeader("WWW-Authenticate", "Negotiate");
-            
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                new LoginResponse(false, "Negotiate authentication required", null, null)
-            );
-        }
         System.err.println("***** TIMESTAMP: " + System.currentTimeMillis() + " *****");
         System.err.println("***** THREAD: " + Thread.currentThread().getName() + " *****");
         System.err.flush();
@@ -339,6 +334,46 @@ public class AuthController {
         LoginResponse loginResponse = new LoginResponse(false, "Not authenticated", null, null);
         System.out.println("Returning unauthorized response: " + loginResponse);
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(loginResponse);
+    }
+
+    @GetMapping("/whoami")
+    public ResponseEntity<Map<String, Object>> getCurrentUserInfo(HttpServletRequest request) {
+        System.out.println("=== WHOAMI ENDPOINT CALLED ===");
+        System.out.println("Request URI: " + request.getRequestURI());
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+            Map<String, Object> response = new HashMap<>();
+
+            String fullUsername = auth.getName();
+            String domain = "";
+            String username = fullUsername;
+
+            // Extract domain and username if format is DOMAIN\\user
+            if (fullUsername.contains("\\")) {
+                String[] parts = fullUsername.split("\\\\", 2);
+                domain = parts[0];
+                username = parts[1];
+            }
+
+            response.put("username", fullUsername);
+            response.put("domain", domain);
+            response.put("user", username);
+            response.put("authenticated", true);
+            response.put("authMethod", "NTLM");
+
+            System.out.println("NTLM authentication successful for: " + fullUsername);
+
+            return ResponseEntity.ok(response);
+        }
+
+        // Not authenticated
+        Map<String, Object> response = new HashMap<>();
+        response.put("authenticated", false);
+        response.put("message", "Authentication required");
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     @PostMapping("/logout")

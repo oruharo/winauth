@@ -6,10 +6,8 @@ After=network.target
 Type=simple
 User={{ app_user }}
 WorkingDirectory={{ app_dir }}
-ExecStart=/usr/bin/java -Djava.security.krb5.conf=/etc/krb5.conf -Dsun.security.krb5.debug=true -Dsun.security.jgss.debug=true -Dsun.security.krb5.principal.debug=true -Djava.security.debug=gssloginconfig,configfile,configparser,logincontext -Djdk.security.allowWeakKDF=true -Dsun.security.krb5.allowWeakCrypto=true -Dkrb5.kdc.bad.policy=tryLast -Dsun.security.krb5.use_weak_encryption=true -jar {{ app_dir }}/winauth-server.jar
+ExecStart=/usr/bin/java -Dspring.profiles.active=ntlm -Dspring.config.location=file:{{ app_dir }}/application.properties,file:{{ app_dir }}/application-ntlm.properties -jar {{ app_dir }}/winauth-server.jar
 Restart=on-failure
-Environment=SPRING_PROFILES_ACTIVE=kerberos
-Environment=SPRING_CONFIG_LOCATION=file:{{ app_dir }}/application.properties,file:{{ app_dir }}/application-kerberos.properties
 
 [Install]
 WantedBy=multi-user.target

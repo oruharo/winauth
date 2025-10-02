@@ -13,7 +13,7 @@ import org.springframework.security.ldap.authentication.ad.ActiveDirectoryLdapAu
 
 @Configuration
 @EnableWebSecurity
-@Profile("!kerberos")
+@Profile({"default", "ldap", "!kerberos & !ntlm"})
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Value("${ad.domain}")
