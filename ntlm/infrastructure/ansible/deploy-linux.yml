@@ -12,7 +12,7 @@
 
     - name: Set default stack name if empty
       set_fact:
-        stack_name_var: "has-kerberos-test-9606"
+        stack_name_var: "has-ntlm-test-0001"
       run_once: true
       when: stack_name_var == "" or stack_name_var is not defined
 
@@ -40,7 +40,6 @@
         name:
           - "{{ java_package }}"
           - git
-          - krb5-workstation
           - maven
         state: present
     
@@ -56,40 +55,6 @@
       loop:
         - "{{ dc1_ip }} dc1.domain1.lab DOMAIN1.LAB"
         - "{{ dc2_ip }} dc2.domain2.lab DOMAIN2.LAB"
-    
-    - name: Create Kerberos configuration
-      template:
-        src: krb5.conf.j2
-        dest: /etc/krb5.conf
-        mode: '0644'
-      
-    - name: Configure Java 17 security policy for RC4 support
-      blockinfile:
-        path: /usr/lib/jvm/java-17-amazon-corretto.x86_64/conf/security/java.security
-        marker: "# {mark} ANSIBLE MANAGED BLOCK - Kerberos RC4 Support"
-        block: |
-          # Enable weak crypto for Kerberos RC4 compatibility
-          krb5.login.modules.accept.weak.crypto=true
-          allow_weak_crypto=true
-        create: no
-      ignore_errors: yes
-      
-    - name: Create keytab directory
-      file:
-        path: "{{ keytab_dir }}"
-        state: directory
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: '0755'
-
-    - name: Upload combined AES+RC4 keytab file
-      copy:
-        src: ./keytabs/winauth-combined.keytab
-        dest: "{{ keytab_dir }}/winauth-combined.keytab"
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: '0600'
-      ignore_errors: yes
     
     - name: Create application directory
       file:
@@ -160,7 +125,7 @@
     - name: Build WinAuth client application
       shell: |
         cd {{ app_dir }}/source/client
-        npm install
+        npm install --legacy-peer-deps
         npm run build
         cp -r dist {{ app_dir }}/client-dist
       become_user: "{{ app_user }}"
@@ -191,14 +156,6 @@
         group: "{{ app_user }}"
         mode: '0644'
     
-    - name: Create Kerberos application configuration
-      template:
-        src: application-kerberos.properties.j2
-        dest: "{{ app_dir }}/application-kerberos.properties"
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: '0644'
-
     - name: Create NTLM application configuration
       template:
         src: application-ntlm.properties.j2

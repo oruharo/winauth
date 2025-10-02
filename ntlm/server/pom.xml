@@ -58,9 +58,6 @@
             <artifactId>spring-security-kerberos-web</artifactId>
             <version>1.0.1.RELEASE</version>
         </dependency>
-
-        <!-- NTLM Authentication Support -->
-        <!-- Note: NTLM implementation using custom filter, no additional dependencies needed -->
         
         <!-- Development Tools -->
         <dependency>

@@ -27,7 +27,6 @@
     - name: Set ALB DNS name fact
       set_fact:
         alb_dns_name: "{{ stack_info.cloudformation[stack_name_var].stack_outputs.ALBDNSName }}"
-      run_once: true
       when: stack_info.cloudformation is defined and stack_name_var in stack_info.cloudformation
 
     - name: Update all packages
