@@ -1,0 +1,155 @@
+---
+# Ansible playbook to create ALB Target Groups
+# This replaces the CloudFormation TargetGroup definitions
+
+- name: Setup ALB Target Groups
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    # Stack name to get ALB ARN and VPC ID
+    stack_name: "{{ lookup('env', 'STACK_NAME') | default('has-kerberos-test') }}"
+    prefix: "{{ lookup('env', 'PREFIX') | default('has') }}"
+
+  tasks:
+    - name: Install packaging library first (required for pip module)
+      shell: "/usr/local/opt/python@3.13/bin/python3.13 -m pip install --break-system-packages packaging"
+      delegate_to: localhost
+      ignore_errors: yes
+
+    - name: Install required Python packages for AWS modules
+      pip:
+        name:
+          - boto3
+          - botocore
+        state: present
+        extra_args: --break-system-packages
+      delegate_to: localhost
+
+    - name: Get CloudFormation stack outputs
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ stack_name }}"
+      register: stack_info
+
+    - name: Extract required values from CloudFormation
+      set_fact:
+        alb_arn: "{{ stack_info.cloudformation[stack_name].stack_outputs.ALBArn }}"
+        vpc_id: "{{ stack_info.cloudformation[stack_name].stack_outputs.VPCId }}"
+        linux_public_ip: "{{ stack_info.cloudformation[stack_name].stack_outputs.LinuxAppPublicIP }}"
+
+    - name: Get Linux instance ID by public IP
+      amazon.aws.ec2_instance_info:
+        filters:
+          "ip-address": "{{ linux_public_ip }}"
+          "instance-state-name": "running"
+      register: linux_instance_info
+
+    - name: Set Linux instance ID
+      set_fact:
+        linux_instance_id: "{{ linux_instance_info.instances[0].instance_id }}"
+
+    - name: Check if Nginx Target Group exists
+      community.aws.elb_target_group_info:
+        names:
+          - "{{ prefix }}-nginx-tg"
+      register: nginx_tg_info
+      ignore_errors: yes
+
+    - name: Get ALB listeners using the Target Group
+      command: |
+        aws elbv2 describe-listeners \
+          --load-balancer-arn {{ alb_arn }} \
+          --query "Listeners[?DefaultActions[0].TargetGroupArn=='{{ nginx_tg_info.target_groups[0].target_group_arn }}'].ListenerArn" \
+          --output text
+      register: listeners_using_tg
+      when: nginx_tg_info.target_groups | length > 0
+      ignore_errors: yes
+
+    - name: Delete listeners using the Target Group
+      command: |
+        aws elbv2 delete-listener --listener-arn {{ item }}
+      loop: "{{ listeners_using_tg.stdout.split() }}"
+      when: 
+        - nginx_tg_info.target_groups | length > 0
+        - listeners_using_tg.stdout != ""
+      ignore_errors: yes
+
+    - name: Delete existing Nginx Target Group if exists
+      community.aws.elb_target_group:
+        name: "{{ prefix }}-nginx-tg"
+        state: absent
+      when: nginx_tg_info.target_groups | length > 0
+      ignore_errors: yes
+
+    - name: Create Nginx Target Group (port 80)
+      community.aws.elb_target_group:
+        name: "{{ prefix }}-nginx-tg"
+        protocol: http
+        port: 80
+        vpc_id: "{{ vpc_id }}"
+        target_type: instance
+        health_check_protocol: http
+        health_check_path: "/health"
+        health_check_interval: 30
+        health_check_timeout: 5
+        healthy_threshold_count: 2
+        unhealthy_threshold_count: 3
+        targets:
+          - Id: "{{ linux_instance_id }}"
+            Port: 80
+        tags:
+          Name: "{{ prefix }}-nginx-tg"
+          Owner: "{{ prefix }}"
+        state: present
+      register: nginx_target_group
+
+    - name: Check if API Target Group exists
+      community.aws.elb_target_group_info:
+        names:
+          - "{{ prefix }}-api-tg"
+      register: api_tg_info
+      ignore_errors: yes
+
+    - name: Delete existing API Target Group if exists
+      community.aws.elb_target_group:
+        name: "{{ prefix }}-api-tg"
+        state: absent
+      when: api_tg_info.target_groups | length > 0
+      ignore_errors: yes
+
+    - name: Create Spring Boot API Target Group (port 8082)
+      community.aws.elb_target_group:
+        name: "{{ prefix }}-api-tg"
+        protocol: http
+        port: 8082
+        vpc_id: "{{ vpc_id }}"
+        target_type: instance
+        health_check_protocol: http
+        health_check_path: "/api/health"
+        health_check_interval: 30
+        health_check_timeout: 5
+        healthy_threshold_count: 2
+        unhealthy_threshold_count: 3
+        successful_response_codes: "200,401"
+        targets:
+          - Id: "{{ linux_instance_id }}"
+            Port: 8082
+        tags:
+          Name: "{{ prefix }}-api-tg"
+          Owner: "{{ prefix }}"
+        state: present
+      register: springboot_target_group
+
+    - name: Display Target Group ARNs
+      debug:
+        msg:
+          - "Nginx Target Group ARN: {{ nginx_target_group.target_group_arn }}"
+          - "Spring Boot Target Group ARN: {{ springboot_target_group.target_group_arn }}"
+
+    - name: Save Target Group ARNs to facts file
+      copy:
+        content: |
+          nginx_target_group_arn: "{{ nginx_target_group.target_group_arn }}"
+          springboot_target_group_arn: "{{ springboot_target_group.target_group_arn }}"
+        dest: "/tmp/target_groups_facts.yml"
+      delegate_to: localhost

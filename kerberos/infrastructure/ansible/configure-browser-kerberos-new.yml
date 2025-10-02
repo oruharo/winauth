@@ -1,0 +1,85 @@
+---
+- name: Configure Browser Settings for Kerberos Authentication
+  hosts: windows_clients
+  gather_facts: yes
+
+  vars:
+    alb_wildcard: "*.elb.amazonaws.com"
+
+  tasks:
+    - name: Get ALB DNS name from CloudFormation (dynamic)
+      delegate_to: localhost
+      become: no
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ lookup('env', 'STACK_NAME') | default('has-kerberos-test-9606') }}"
+      register: stack_info
+      run_once: true
+
+    - name: Set ALB DNS name fact
+      set_fact:
+        alb_dns_name: "{{ stack_info.cloudformation[lookup('env', 'STACK_NAME') | default('has-kerberos-test-9606')].stack_outputs.ALBDNSName }}"
+      run_once: true
+
+    - name: Configure browser registry settings for domain1 user
+      win_shell: |
+        $albName = "{{ alb_dns_name }}"
+        $albPrefix = $albName.Split('.')[0]
+        
+        # Get domain1\user1 SID
+        $userSid = (New-Object System.Security.Principal.NTAccount("domain1\user1")).Translate([System.Security.Principal.SecurityIdentifier]).Value
+        
+        # Create registry keys for ALB domain
+        $regPath1 = "Registry::HKEY_USERS\$userSid\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\amazonaws.com\elb\$albPrefix"
+        New-Item -Path $regPath1 -Force | Out-Null
+        Set-ItemProperty -Path $regPath1 -Name "https" -Value 1 -Type DWord
+        
+        # Create general ALB wildcard mapping
+        $regPath2 = "Registry::HKEY_USERS\$userSid\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\amazonaws.com\elb"
+        New-Item -Path $regPath2 -Force | Out-Null
+        Set-ItemProperty -Path $regPath2 -Name "https" -Value 1 -Type DWord
+        
+        # Configure Intranet Zone settings for automatic logon
+        $regPath3 = "Registry::HKEY_USERS\$userSid\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\1"
+        Set-ItemProperty -Path $regPath3 -Name "1A00" -Value 0 -Type DWord
+        Set-ItemProperty -Path $regPath3 -Name "1A10" -Value 0 -Type DWord
+        
+        Write-Output "Registry configured for domain1\user1"
+
+    - name: Enable integrated Windows authentication for Edge
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Policies\Microsoft\Edge'
+        name: AuthNegotiateDelegateAllowlist
+        data: "{{ alb_dns_name }}"
+        type: string
+
+    - name: Enable Windows authentication for Edge servers list
+      win_regedit:
+        path: 'HKCU:\SOFTWARE\Policies\Microsoft\Edge'
+        name: AuthServerAllowlist
+        data: "{{ alb_dns_name }}"
+        type: string
+
+    - name: Remove incorrect ALB entry from hosts file if exists
+      win_lineinfile:
+        path: C:\Windows\System32\drivers\etc\hosts
+        regexp: '.*{{ alb_dns_name }}.*'
+        state: absent
+
+    - name: Restart Internet Explorer processes
+      win_shell: |
+        Get-Process iexplore -ErrorAction SilentlyContinue | Stop-Process -Force
+        Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force
+      ignore_errors: yes
+
+    - name: Display browser configuration summary
+      debug:
+        msg:
+          - "Browser configuration completed for Kerberos authentication"
+          - "ALB DNS: {{ alb_dns_name }}"
+          - "Zone: Local Intranet (automatic Windows authentication)"
+          - "Registry configured for domain1\user1 user"
+          - "Next steps:"
+          - "1. Login as domain1\user1"
+          - "2. Open Microsoft Edge"
+          - "3. Navigate to https://{{ alb_dns_name }}"
+          - "4. Kerberos authentication should work automatically"

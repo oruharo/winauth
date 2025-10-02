@@ -1,0 +1,59 @@
+# nginx configuration for static content delivery with ALB
+# ALB handles all routing and backend connections
+# nginx only serves static React frontend files
+
+# Increase server names hash bucket size for long ALB DNS names
+server_names_hash_bucket_size 128;
+
+server {
+    listen 80;
+    server_name {{ app_hostname }} {{ ansible_host }} {{ alb_dns_name | default('_') }};
+
+    # Trust X-Forwarded headers from ALB
+    real_ip_header X-Forwarded-For;
+    set_real_ip_from 10.0.0.0/16;  # VPC CIDR
+
+    # Root directory for React frontend
+    root {{ app_dir }}/client-dist;
+    index index.html;
+
+    # Main location - serve React SPA
+    location / {
+        try_files $uri $uri/ /index.html;
+
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        
+        # Forward the original protocol info from ALB
+        add_header X-Forwarded-Proto $http_x_forwarded_proto always;
+    }
+
+    # Static assets with aggressive caching
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # Health check endpoint for ALB
+    location = /health {
+        return 200 "healthy
+";
+        add_header Content-Type text/plain;
+        access_log off;
+    }
+
+    # Disable access logging for favicon
+    location = /favicon.ico {
+        access_log off;
+        log_not_found off;
+    }
+
+    # Disable access logging for robots.txt
+    location = /robots.txt {
+        access_log off;
+        log_not_found off;
+    }
+}

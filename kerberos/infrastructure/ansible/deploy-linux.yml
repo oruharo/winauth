@@ -1,0 +1,213 @@
+---
+- name: Deploy WinAuth Linux Application Server
+  hosts: linux_servers
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Set stack name variable
+      set_fact:
+        stack_name_var: "{{ lookup('env', 'STACK_NAME') }}"
+      run_once: true
+
+    - name: Set default stack name if empty
+      set_fact:
+        stack_name_var: "has-kerberos-test-9606"
+      run_once: true
+      when: stack_name_var == "" or stack_name_var is not defined
+
+    - name: Get ALB DNS name from CloudFormation
+      delegate_to: localhost
+      become: no
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ stack_name_var }}"
+      register: stack_info
+      run_once: true
+
+    - name: Set ALB DNS name fact
+      set_fact:
+        alb_dns_name: "{{ stack_info.cloudformation[stack_name_var].stack_outputs.ALBDNSName }}"
+      run_once: true
+      when: stack_info.cloudformation is defined and stack_name_var in stack_info.cloudformation
+
+    - name: Update all packages
+      dnf:
+        name: "*"
+        state: latest
+      
+    - name: Install required packages
+      dnf:
+        name:
+          - "{{ java_package }}"
+          - git
+          - krb5-workstation
+          - maven
+        state: present
+    
+    - name: Set hostname
+      hostname:
+        name: "{{ app_hostname }}"
+    
+    - name: Add domain controllers to /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ item }}"
+        create: yes
+      loop:
+        - "{{ dc1_ip }} dc1.domain1.lab DOMAIN1.LAB"
+        - "{{ dc2_ip }} dc2.domain2.lab DOMAIN2.LAB"
+    
+    - name: Create Kerberos configuration
+      template:
+        src: krb5.conf.j2
+        dest: /etc/krb5.conf
+        mode: '0644'
+      
+    - name: Configure Java 17 security policy for RC4 support
+      blockinfile:
+        path: /usr/lib/jvm/java-17-amazon-corretto.x86_64/conf/security/java.security
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - Kerberos RC4 Support"
+        block: |
+          # Enable weak crypto for Kerberos RC4 compatibility
+          krb5.login.modules.accept.weak.crypto=true
+          allow_weak_crypto=true
+        create: no
+      ignore_errors: yes
+      
+    - name: Create keytab directory
+      file:
+        path: "{{ keytab_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+
+    - name: Upload combined AES+RC4 keytab file
+      copy:
+        src: ./keytabs/winauth-combined.keytab
+        dest: "{{ keytab_dir }}/winauth-combined.keytab"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0600'
+      ignore_errors: yes
+    
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+    
+    - name: Create systemd service file
+      template:
+        src: winauth.service.j2
+        dest: /etc/systemd/system/winauth.service
+        mode: '0644'
+      notify: reload systemd
+    
+    - name: Enable winauth service
+      systemd:
+        name: winauth
+        enabled: yes
+        daemon_reload: yes
+    
+    - name: Create WinAuth source directory
+      file:
+        path: "{{ app_dir }}/source"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+
+    - name: Copy WinAuth server source
+      copy:
+        src: "{{ playbook_dir }}/../../server/"
+        dest: "{{ app_dir }}/source/server/"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0644'
+        directory_mode: '0755'
+
+    - name: Copy WinAuth client source
+      copy:
+        src: "{{ playbook_dir }}/../../client/"
+        dest: "{{ app_dir }}/source/client/"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0644'
+        directory_mode: '0755'
+
+    - name: Build WinAuth server application
+      shell: |
+        cd {{ app_dir }}/source/server
+        mvn clean package -DskipTests
+        cp target/*.jar {{ app_dir }}/winauth-server.jar
+      become_user: "{{ app_user }}"
+
+    - name: Install Node.js 22 LTS
+      dnf:
+        name:
+          - nodejs22
+          - nodejs22-npm
+        state: present
+
+    - name: Build WinAuth client application
+      shell: |
+        cd {{ app_dir }}/source/client
+        npm install
+        npm run build
+        cp -r dist {{ app_dir }}/client-dist
+      become_user: "{{ app_user }}"
+
+    - name: Install nginx for client serving
+      dnf:
+        name: nginx
+        state: present
+
+    - name: Configure nginx for ALB environment
+      template:
+        src: nginx-winauth-alb.conf.j2
+        dest: /etc/nginx/conf.d/winauth.conf
+        mode: '0644'
+      notify: reload nginx
+
+    - name: Start and enable nginx
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+    
+    - name: Create application configuration
+      template:
+        src: application.properties.j2
+        dest: "{{ app_dir }}/application.properties"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0644'
+    
+    - name: Create Kerberos application configuration
+      template:
+        src: application-kerberos.properties.j2
+        dest: "{{ app_dir }}/application-kerberos.properties"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0644'
+  
+    - name: Start WinAuth server service
+      systemd:
+        name: winauth
+        state: started
+        enabled: yes
+
+
+
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: reload nginx
+      systemd:
+        name: nginx
+        state: reloaded

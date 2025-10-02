@@ -1,0 +1,150 @@
+---
+# Ansible playbook to create ALB Listeners
+# This replaces the CloudFormation Listener definitions
+
+- name: Setup ALB Listeners
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    # Stack name to get ALB ARN
+    stack_name: "{{ lookup('env', 'STACK_NAME') | default('has-kerberos-test') }}"
+    prefix: "{{ lookup('env', 'PREFIX') | default('has') }}"
+    # SSL certificate ARN (will be provided when setting up HTTPS)
+    ssl_cert_arn: "{{ lookup('env', 'SSL_CERT_ARN') | default('') }}"
+
+  tasks:
+    - name: Install packaging library first (required for pip module)
+      shell: "/usr/local/opt/python@3.13/bin/python3.13 -m pip install --break-system-packages packaging"
+      delegate_to: localhost
+      ignore_errors: yes
+
+    - name: Install required Python packages for AWS modules
+      pip:
+        name:
+          - boto3
+          - botocore
+        state: present
+        extra_args: --break-system-packages
+      delegate_to: localhost
+
+    - name: Get CloudFormation stack outputs
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ stack_name }}"
+      register: stack_info
+
+    - name: Extract ALB ARN from CloudFormation
+      set_fact:
+        alb_arn: "{{ stack_info.cloudformation[stack_name].stack_outputs.ALBArn }}"
+
+    - name: Load Target Group ARNs from facts file
+      include_vars: "/tmp/target_groups_facts.yml"
+
+    - name: Create HTTP Listener (port 80) - Routes to Nginx with API routing
+      shell: |
+        aws elbv2 create-listener \
+          --load-balancer-arn "{{ alb_arn }}" \
+          --protocol HTTP \
+          --port 80 \
+          --default-actions Type=forward,TargetGroupArn="{{ nginx_target_group_arn }}"
+      register: http_listener
+      ignore_errors: yes
+
+    - name: Add API routing rule to HTTP Listener  
+      shell: |
+        LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn "{{ alb_arn }}" --query 'Listeners[?Port==`80`].ListenerArn' --output text)
+        aws elbv2 create-rule \
+          --listener-arn $LISTENER_ARN \
+          --priority 100 \
+          --conditions Field=path-pattern,Values="/api/*" \
+          --actions Type=forward,TargetGroupArn="{{ springboot_target_group_arn }}"
+      register: api_rule
+      ignore_errors: yes
+
+    - name: Add actuator health routing rule to HTTP Listener
+      shell: |
+        LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn "{{ alb_arn }}" --query 'Listeners[?Port==`80`].ListenerArn' --output text)  
+        aws elbv2 create-rule \
+          --listener-arn $LISTENER_ARN \
+          --priority 200 \
+          --conditions Field=path-pattern,Values="/actuator/health" \
+          --actions Type=forward,TargetGroupArn="{{ springboot_target_group_arn }}"
+      register: health_rule
+      ignore_errors: yes
+
+    - name: Get ALB DNS name for certificate
+      set_fact:
+        alb_dns_name: "{{ stack_info.cloudformation[stack_name].stack_outputs.ALBDNSName }}"
+
+    - name: Create self-signed SSL certificate for ALB
+      shell: |
+        openssl req -x509 -newkey rsa:2048 -keyout alb-selfsigned.key -out alb-selfsigned.crt -days 365 -nodes -subj "/C=US/ST=State/L=City/O=Organization/CN={{ alb_dns_name }}"
+      register: cert_creation
+      ignore_errors: yes
+    - name: Upload self-signed certificate to ACM
+      shell: |
+        aws acm import-certificate \
+          --certificate fileb://alb-selfsigned.crt \
+          --private-key fileb://alb-selfsigned.key \
+          --query 'CertificateArn' --output text
+      register: cert_result
+      when: cert_creation is succeeded
+      ignore_errors: yes
+
+    - name: Set certificate ARN fact
+      set_fact:
+        ssl_cert_arn: "{{ cert_result.stdout.strip() }}"
+      when: cert_result.stdout is defined and cert_result.stdout != ""
+
+    - name: Create HTTPS Listener (port 443) with SSL certificate  
+      shell: |
+        aws elbv2 create-listener \
+          --load-balancer-arn "{{ alb_arn }}" \
+          --protocol HTTPS \
+          --port 443 \
+          --certificates CertificateArn="{{ ssl_cert_arn }}" \
+          --default-actions Type=forward,TargetGroupArn="{{ nginx_target_group_arn }}"
+      register: https_listener
+      when: ssl_cert_arn is defined and ssl_cert_arn != ""
+      ignore_errors: yes
+
+    - name: Add API routing rule to HTTPS Listener
+      shell: |
+        LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn "{{ alb_arn }}" --query 'Listeners[?Port==`443`].ListenerArn' --output text)
+        aws elbv2 create-rule \
+          --listener-arn $LISTENER_ARN \
+          --priority 100 \
+          --conditions Field=path-pattern,Values="/api/*" \
+          --actions Type=forward,TargetGroupArn="{{ springboot_target_group_arn }}"
+      register: https_api_rule
+      when: ssl_cert_arn is defined and ssl_cert_arn != ""
+      ignore_errors: yes
+
+    - name: Add actuator health routing rule to HTTPS Listener
+      shell: |
+        LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn "{{ alb_arn }}" --query 'Listeners[?Port==`443`].ListenerArn' --output text)
+        aws elbv2 create-rule \
+          --listener-arn $LISTENER_ARN \
+          --priority 200 \
+          --conditions Field=path-pattern,Values="/actuator/health" \
+          --actions Type=forward,TargetGroupArn="{{ springboot_target_group_arn }}"
+      register: https_health_rule  
+      when: ssl_cert_arn is defined and ssl_cert_arn != ""
+      ignore_errors: yes
+
+    - name: Display Listener information
+      debug:
+        msg:
+          - "HTTP Listener configured for ALB: {{ alb_arn }}"
+          - "HTTPS Listener configured: {{ 'Yes' if ssl_cert_arn != '' else 'No (SSL_CERT_ARN not provided)' }}"
+          - "Routes configured:"
+          - "  - / -> Nginx Target Group ({{ nginx_target_group_arn }})"
+          - "  - /api/* -> Spring Boot Target Group ({{ springboot_target_group_arn }})"
+          - "  - /actuator/health -> Spring Boot Target Group ({{ springboot_target_group_arn }})"
+
+    - name: Warning if SSL certificate not provided
+      debug:
+        msg: 
+          - "WARNING: HTTPS listener not created because SSL_CERT_ARN is not provided"
+          - "To create HTTPS listener, set SSL_CERT_ARN environment variable and re-run this playbook"
+      when: ssl_cert_arn == ""

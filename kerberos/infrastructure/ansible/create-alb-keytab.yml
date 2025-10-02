@@ -1,0 +1,53 @@
+---
+- name: Create ALB Keytab for Kerberos Authentication
+  hosts: domain_controllers
+  gather_facts: no
+
+  tasks:
+    - name: Get ALB DNS name from CloudFormation
+      delegate_to: localhost
+      become: no
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ lookup('env', 'STACK_NAME') | default('has-kerberos-test-9606') }}"
+      register: stack_info
+      run_once: true
+      when: inventory_hostname == 'dc1'
+
+    - name: Set ALB DNS name fact
+      set_fact:
+        alb_dns_name: "{{ stack_info.cloudformation['has-kerberos-test-9606'].stack_outputs.ALBDNSName }}"
+      when: inventory_hostname == 'dc1' and stack_info is defined
+
+    - name: Display ALB DNS name
+      debug:
+        msg: "Creating keytab for ALB DNS: {{ alb_dns_name }}"
+      when: inventory_hostname == 'dc1' and alb_dns_name is defined
+
+    - name: Register SPN for ALB DNS
+      win_shell: |
+        setspn -A HTTP/{{ alb_dns_name }} svcapp
+      when: inventory_hostname == 'dc1' and alb_dns_name is defined
+      ignore_errors: yes
+
+    - name: Create keytab for ALB DNS
+      win_shell: |
+        ktpass -princ HTTP/{{ alb_dns_name }}@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass ServicePass123! -out C:\winauth-aes.keytab
+      when: inventory_hostname == 'dc1' and alb_dns_name is defined
+
+    - name: Verify keytab creation
+      win_stat:
+        path: C:\winauth-aes.keytab
+      register: keytab_file
+      when: inventory_hostname == 'dc1'
+
+    - name: Display keytab creation result
+      debug:
+        msg: "Keytab created successfully: {{ keytab_file.stat.exists }}"
+      when: inventory_hostname == 'dc1' and keytab_file is defined
+
+    - name: Download new keytab file
+      fetch:
+        src: C:\winauth-aes.keytab
+        dest: ./keytabs/
+        flat: yes
+      when: inventory_hostname == 'dc1' and keytab_file.stat.exists
