@@ -91,51 +91,6 @@
         password_never_expires: true
       when: inventory_hostname == 'dc2'
       
-    - name: Create service account for Kerberos
-      microsoft.ad.user:
-        name: svcapp
-        password: "{{ service_password | default('DefaultServicePass123!') }}"
-        state: present
-        password_expired: false
-        password_never_expires: true
-      when: inventory_hostname == 'dc1'
-
-    - name: Create keytab for service account (local hostname)
-      win_shell: |
-        ktpass -princ HTTP/winauth.app.local@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass {{ service_password | default('DefaultServicePass123!') }} -out C:\svcapp.keytab
-      when: inventory_hostname == 'dc1'
-
-    - name: Create keytab for service account (FQDN hostname)
-      win_shell: |
-        ktpass -princ HTTP/{{ ansible_hostname }}.{{ ansible_domain }}@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass {{ service_password | default('DefaultServicePass123!') }} -out C:\svcapp-fqdn.keytab
-      when: inventory_hostname == 'dc1'
-
-    - name: Register SPN for ALB DNS
-      win_shell: |
-        setspn -A HTTP/{{ alb_dns_name }} svcapp
-      when: inventory_hostname == 'dc1' and alb_dns_name is defined
-      register: spn_result
-      changed_when: spn_result.stdout is not search('Duplicate SPN found')
-      failed_when: false
-
-    - name: Create combined keytab for ALB DNS (AES256 + RC4)
-      win_shell: |
-        ktpass -princ HTTP/{{ alb_dns_name }}@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass {{ service_password | default('DefaultServicePass123!') }} -out C:\winauth-combined.keytab
-        ktpass -princ HTTP/{{ alb_dns_name }}@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto RC4-HMAC-NT -ptype KRB5_NT_PRINCIPAL -pass {{ service_password | default('DefaultServicePass123!') }} -in C:\winauth-combined.keytab -out C:\winauth-combined.keytab
-      when: inventory_hostname == 'dc1' and alb_dns_name is defined
-
-    - name: Download keytab files
-      fetch:
-        src: "{{ item }}"
-        dest: ./keytabs/
-        flat: yes
-      loop:
-        - C:\svcapp.keytab
-        - C:\svcapp-fqdn.keytab
-        - C:\winauth-combined.keytab
-      when: inventory_hostname == 'dc1'
-      ignore_errors: yes
-
     # Cross-Domain Trust Relationship Setup
     - name: Remove existing DNS conditional forwarder from DC1 to DC2
       win_shell: |

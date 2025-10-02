@@ -1,12 +1,17 @@
-# AWS Kerberos環境 アプリケーション設定 Makefile
+# AWS NTLM環境 アプリケーション設定 Makefile
 #
 # 使用方法:
+#   初回: make save-config KEY_NAME=my-keypair ADMIN_PASSWORD=pass USER_PASSWORD=pass
+#   以降: make deploy (パラメータ不要)
+#
+# または従来通り毎回指定:
 #   make deploy KEY_NAME=my-keypair ADMIN_PASSWORD=pass USER_PASSWORD=pass
-#   make deploy-dc1 KEY_NAME=my-keypair ADMIN_PASSWORD=pass USER_PASSWORD=pass
-#   make deploy-win1 KEY_NAME=my-keypair ADMIN_PASSWORD=pass USER_PASSWORD=pass
+
+# .envファイルから設定を読み込み (存在する場合)
+-include .env
 
 # デフォルト設定
-PREFIX ?= KrbTest
+PREFIX ?= NtlmTest
 SSH_KEY_PATH ?= ~/.ssh/$(KEY_NAME).pem
 
 # 色設定
@@ -32,8 +37,8 @@ export HTTPS_PROXY =
 ##@ General
 ##---------------------------------------------------------------------
 .PHONY: help
-help: ## Display this help.
-	@awk 'BEGIN {FS = ":.*##"; printf "\n\033[34mAWS Kerberos環境 アプリケーション設定 Makefile\033[0m\n\nUsage:\n  make \033[36m<target>\033[0m KEY_NAME=<keypair> ADMIN_PASSWORD=<pass> USER_PASSWORD=<pass>\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+help: ## ヘルプメッセージを表示
+	@awk 'BEGIN {FS = ":.*##"; printf "\n\033[34mAWS NTLM環境 アプリケーション設定 Makefile\033[0m\n\nUsage:\n  make \033[36m<target>\033[0m KEY_NAME=<keypair> ADMIN_PASSWORD=<pass> USER_PASSWORD=<pass>\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "\033[33m必須パラメータ:\033[0m"
 	@echo "  KEY_NAME          AWS KeyPair名"
@@ -41,10 +46,47 @@ help: ## Display this help.
 	@echo "  USER_PASSWORD     ユーザーパスワード"
 	@echo ""
 	@echo "\033[33mオプション:\033[0m"
-	@echo "  PREFIX=KrbTest      スタックプレフィックス"
+	@echo "  PREFIX=NtlmTest     スタックプレフィックス"
 	@echo "  SSH_KEY_PATH        SSH秘密鍵パス (デフォルト: ~/.ssh/KEY_NAME.pem)"
-	@echo "  SERVICE_PASSWORD    サービスアカウントパスワード (デフォルト: DefaultServicePass123!)"
 	@echo "  TRUST_PASSWORD      ドメイン信頼パスワード (デフォルト: DefaultTrustPass123!)"
+	@echo ""
+	@echo "\033[33m設定の保存:\033[0m"
+	@echo "  make save-config    現在のパラメータを保存（次回以降は省略可能）"
+	@echo "  make show-config    保存された設定を表示"
+
+save-config: ## パラメータを.envファイルに保存（次回以降省略可能）
+ifndef KEY_NAME
+	@echo "$(RED)エラー: KEY_NAME が設定されていません$(NC)"
+	@echo "例: make save-config KEY_NAME=my-keypair ADMIN_PASSWORD=pass USER_PASSWORD=pass"
+	@exit 1
+endif
+ifndef ADMIN_PASSWORD
+	@echo "$(RED)エラー: ADMIN_PASSWORD が設定されていません$(NC)"
+	@echo "例: make save-config KEY_NAME=my-keypair ADMIN_PASSWORD=pass USER_PASSWORD=pass"
+	@exit 1
+endif
+ifndef USER_PASSWORD
+	@echo "$(RED)エラー: USER_PASSWORD が設定されていません$(NC)"
+	@echo "例: make save-config KEY_NAME=my-keypair ADMIN_PASSWORD=pass USER_PASSWORD=pass"
+	@exit 1
+endif
+	@echo "# Auto-generated configuration" > .env
+	@echo "KEY_NAME=$(KEY_NAME)" >> .env
+	@echo "ADMIN_PASSWORD=$(ADMIN_PASSWORD)" >> .env
+	@echo "USER_PASSWORD=$(USER_PASSWORD)" >> .env
+	@echo "PREFIX=$(PREFIX)" >> .env
+	@echo "TRUST_PASSWORD=$(TRUST_PASSWORD)" >> .env
+	@echo "$(GREEN)✓ 設定を .env に保存しました$(NC)"
+	@echo "$(YELLOW)次回以降は 'make deploy' だけで実行できます$(NC)"
+
+show-config: ## 保存された設定を表示
+	@if [ -f .env ]; then \
+		echo "$(GREEN)保存された設定:$(NC)"; \
+		cat .env | grep -v "^#" | sed 's/^/  /'; \
+	else \
+		echo "$(YELLOW)保存された設定はありません$(NC)"; \
+		echo "$(YELLOW)make save-config で設定を保存してください$(NC)"; \
+	fi
 
 ##---------------------------------------------------------------------
 ##@ Prerequisites
@@ -217,16 +259,10 @@ ansible/inventory/inventory.yml: get-cloudformation-outputs
 		echo "    app_hostname: \"winauth.app.local\""; \
 		echo "    app_private_ip: \"10.0.30.10\""; \
 		echo ""; \
-		echo "    # Kerberos settings"; \
-		echo "    primary_realm: \"DOMAIN1.LAB\""; \
-		echo "    secondary_realm: \"DOMAIN2.LAB\""; \
-		echo ""; \
 		echo "    # Application settings"; \
 		echo "    java_package: \"java-17-amazon-corretto-devel\""; \
 		echo "    app_user: \"ec2-user\""; \
 		echo "    app_dir: \"/opt/winauth\""; \
-		echo "    keytab_dir: \"/etc/kerberos\""; \
-		echo "    keytab_name: \"winauth-combined.keytab\""; \
 	} > $@
 	@echo "$(GREEN)✓ インベントリファイルを作成しました$(NC)"
 
@@ -246,13 +282,9 @@ ansible/inventory/inventory.yml: get-cloudformation-outputs
 	@echo "$(GREEN)Windows クライアントを設定中...$(NC)"
 	@ansible-playbook -i ansible/inventory/inventory.yml ansible/setup-windows-clients.yml $(ANSIBLE_LIMIT) -v
 	@echo "$(GREEN)✓ Windows クライアント設定が完了しました$(NC)"
-	@echo "$(GREEN)ブラウザ設定（Kerberos認証用）...$(NC)"
-	@export STACK_NAME="$(STACK_NAME)"; \
-	ansible-playbook -i ansible/inventory/inventory.yml ansible/configure-browser-kerberos.yml $(ANSIBLE_LIMIT) -v
-	@echo "$(GREEN)✓ ブラウザ設定が完了しました$(NC)"
 
-# Linux アプリケーション設定
-.run-linux-app: ansible/inventory/inventory.yml
+# ALB設定
+.run-alb-config: ansible/inventory/inventory.yml
 	@echo "$(GREEN)ALB Target Groups設定...$(NC)"
 	@export STACK_NAME="$(STACK_NAME)"; export PREFIX="$(PREFIX)"; \
 	ansible-playbook -i localhost, ansible/setup-alb-target-groups.yml -v
@@ -261,97 +293,12 @@ ansible/inventory/inventory.yml: get-cloudformation-outputs
 	@export STACK_NAME="$(STACK_NAME)"; \
 	ansible-playbook -i localhost, ansible/setup-alb-listeners.yml -v
 	@echo "$(GREEN)✓ ALB Listeners作成が完了しました$(NC)"
-	@echo "$(GREEN)Linux アプリケーション設定...$(NC)"
-	@echo "SSH接続の準備を待機中..."
-	@sleep 30
-	@ansible-playbook -i ansible/inventory/inventory.yml ansible/deploy-linux.yml -v
-	@echo "$(GREEN)✓ Linux アプリケーション設定が完了しました$(NC)"
 
-##---------------------------------------------------------------------
-##@ Individual Playbooks
-##---------------------------------------------------------------------
-
-# Playbookを直接実行する汎用ターゲット
-run-playbook: ansible/inventory/inventory.yml ## Run specific playbook (usage: make run-playbook PLAYBOOK=setup-domain-controllers.yml)
-ifndef PLAYBOOK
-	@echo "$(RED)エラー: PLAYBOOK パラメータが必要です$(NC)"
-	@echo "例: make run-playbook PLAYBOOK=setup-domain-controllers.yml KEY_NAME=my-keypair ADMIN_PASSWORD=pass USER_PASSWORD=pass"
-	@echo "利用可能なPlaybook:"
-	@ls ansible/*.yml | grep -v requirements.yml | sed 's|ansible/||' | sed 's/^/  /'
-	@exit 1
-endif
-	@echo "$(GREEN)Playbook '$(PLAYBOOK)' を実行中...$(NC)"
-	@export STACK_NAME="$(STACK_NAME)"; \
-	if [ "$(PLAYBOOK)" = "setup-alb-target-groups.yml" ] || [ "$(PLAYBOOK)" = "setup-alb-listeners.yml" ]; then \
-		export PREFIX="$(PREFIX)"; \
-		ansible-playbook -i localhost, ansible/$(PLAYBOOK) $(ANSIBLE_LIMIT) -v; \
-	else \
-		ansible-playbook -i ansible/inventory/inventory.yml ansible/$(PLAYBOOK) $(ANSIBLE_LIMIT) -v; \
-	fi
-	@echo "$(GREEN)✓ Playbook '$(PLAYBOOK)' が完了しました$(NC)"
-
-# 個別Playbookターゲット
-setup-domain-controllers: PLAYBOOK = setup-domain-controllers.yml
-setup-domain-controllers: check-ssh-key setup-ansible-collections run-playbook ## Setup domain controllers
-
-setup-windows-clients: check-ssh-key setup-ansible-collections .run-windows-clients ## Setup Windows clients
-
-configure-browser-kerberos: PLAYBOOK = configure-browser-kerberos.yml
-configure-browser-kerberos: check-ssh-key setup-ansible-collections run-playbook ## Configure browser for Kerberos
-
-configure-browser-kerberos-new: PLAYBOOK = configure-browser-kerberos-new.yml
-configure-browser-kerberos-new: check-ssh-key setup-ansible-collections run-playbook ## Configure browser for Kerberos (new version)
-
-# deploy-linux is defined later in the Combined Deployment section
-
-setup-alb-target-groups: PLAYBOOK = setup-alb-target-groups.yml
-setup-alb-target-groups: check-ssh-key setup-ansible-collections run-playbook ## Setup ALB target groups
-
-setup-alb-listeners: PLAYBOOK = setup-alb-listeners.yml
-setup-alb-listeners: check-ssh-key setup-ansible-collections run-playbook ## Setup ALB listeners
-
-create-alb-keytab: PLAYBOOK = create-alb-keytab.yml
-create-alb-keytab: check-ssh-key setup-ansible-collections run-playbook ## Create ALB keytab
-
-add-alb-spn: PLAYBOOK = add-alb-spn.yml
-add-alb-spn: check-ssh-key setup-ansible-collections run-playbook ## Add ALB SPN
-
-setup-alb: PLAYBOOK = setup-alb.yml
-setup-alb: check-ssh-key setup-ansible-collections run-playbook ## Setup ALB
-
-configure-nginx-alb: PLAYBOOK = configure-nginx-alb.yml
-configure-nginx-alb: check-ssh-key setup-ansible-collections run-playbook ## Configure nginx for ALB
-
-##---------------------------------------------------------------------
-##@ Step-by-step Workflow
-##---------------------------------------------------------------------
-
-# ステップ別実行（推奨順序）
-step1-domain-controllers: setup-domain-controllers ## Step 1: Setup domain controllers
-
-step2-windows-clients: setup-windows-clients ## Step 2: Setup Windows clients
-
-step3-browser-config: configure-browser-kerberos ## Step 3: Configure browser for Kerberos
-
-step4-alb-target-groups: setup-alb-target-groups ## Step 4a: Setup ALB target groups
-
-step5-alb-listeners: setup-alb-listeners ## Step 5b: Setup ALB listeners
-
-step6-linux-app: deploy-linux-with-wait ## Step 6: Deploy Linux application (with wait)
-
-# Linux デプロイ用の待機付きターゲット
-deploy-linux-with-wait: ansible/inventory/inventory.yml
-	@echo "$(GREEN)SSH接続の準備を待機中...$(NC)"
-	@sleep 30
+# Linux アプリケーション設定
+.run-linux-app: ansible/inventory/inventory.yml
 	@echo "$(GREEN)Linux アプリケーション設定...$(NC)"
 	@ansible-playbook -i ansible/inventory/inventory.yml ansible/deploy-linux.yml -v
 	@echo "$(GREEN)✓ Linux アプリケーション設定が完了しました$(NC)"
-
-# 全ステップを順次実行
-deploy-step-by-step: step1-domain-controllers step2-windows-clients step3-browser-config step4-alb-target-groups step5-alb-listeners step6-linux-app ## Deploy all components step by step
-	@echo ""
-	@echo "$(BLUE)=== 🎉 ステップ別デプロイ完了 🎉 ===$(NC)"
-	@echo "$(GREEN)全6ステップが正常に完了しました$(NC)"
 
 ##---------------------------------------------------------------------
 ##@ Server-specific Deployment
@@ -359,36 +306,30 @@ deploy-step-by-step: step1-domain-controllers step2-windows-clients step3-browse
 
 # 個別サーバー設定 - ドメインコントローラー
 deploy-dc1: ANSIBLE_LIMIT = --limit dc1
-deploy-dc1: check-ssh-key setup-ansible-collections .run-domain-controllers ## Deploy DC1 only
+deploy-dc1: check-ssh-key setup-ansible-collections .run-domain-controllers ## DC1のみデプロイ（DOMAIN1）
 
 deploy-dc2: ANSIBLE_LIMIT = --limit dc2
-deploy-dc2: check-ssh-key setup-ansible-collections .run-domain-controllers ## Deploy DC2 only
+deploy-dc2: check-ssh-key setup-ansible-collections .run-domain-controllers ## DC2のみデプロイ（DOMAIN2）
 
-deploy-domain-controllers: check-ssh-key setup-ansible-collections .run-domain-controllers ## Deploy both domain controllers
+deploy-dc: check-ssh-key setup-ansible-collections .run-domain-controllers ## 両方のドメインコントローラーをデプロイ
 
 # 個別サーバー設定 - Windows クライアント
 deploy-win1: ANSIBLE_LIMIT = --limit win1
-deploy-win1: check-ssh-key setup-ansible-collections .run-windows-clients ## Deploy WIN1 only
+deploy-win1: check-ssh-key setup-ansible-collections .run-windows-clients ## WIN1のみデプロイ（DOMAIN1クライアント）
 
 deploy-win2: ANSIBLE_LIMIT = --limit win2
-deploy-win2: check-ssh-key setup-ansible-collections .run-windows-clients ## Deploy WIN2 only
+deploy-win2: check-ssh-key setup-ansible-collections .run-windows-clients ## WIN2のみデプロイ（DOMAIN2クライアント）
 
-deploy-windows-clients: check-ssh-key setup-ansible-collections .run-windows-clients ## Deploy both Windows clients
+deploy-win: check-ssh-key setup-ansible-collections .run-windows-clients ## 両方のWindowsクライアントをデプロイ
+
+# ALB設定
+deploy-alb: check-ssh-key setup-ansible-collections .run-alb-config ## ALB設定をデプロイ（Target Groups + Listeners）
 
 # Linux アプリケーション
-deploy-linux-app: check-ssh-key setup-ansible-collections .run-linux-app ## Deploy Linux application
+deploy-linux: check-ssh-key setup-ansible-collections .run-linux-app ## Linuxアプリケーションサーバーをデプロイ
 
-##---------------------------------------------------------------------
-##@ Combined Deployment
-##---------------------------------------------------------------------
-
-deploy-dc: deploy-domain-controllers ## Deploy all domain controllers
-
-deploy-clients: deploy-windows-clients ## Deploy all Windows clients
-
-deploy-linux: deploy-linux-app ## Deploy Linux application
-
-deploy: deploy-domain-controllers deploy-windows-clients deploy-linux-app ## Deploy all components
+# 全体デプロイ
+deploy: deploy-dc deploy-win deploy-alb deploy-linux ## 全コンポーネントをデプロイ（DC + WIN + ALB + Linux）
 	@echo ""
 	@echo "$(BLUE)=== 🎉 全体構築完了 🎉 ===$(NC)"
 	@echo ""
@@ -401,8 +342,8 @@ deploy: deploy-domain-controllers deploy-windows-clients deploy-linux-app ## Dep
 	@echo "  ALB DNS:           $(ALB_DNS_NAME)"
 	@echo ""
 	@echo "$(YELLOW)🌐 アプリケーションURL:$(NC)"
-	@echo "  WinAuth (直接):    http://$(LINUX_PUBLIC_IP):8082"
-	@echo "  WinAuth (ALB経由): http://$(ALB_DNS_NAME)"
+	@echo "  WinAuth (直接):    https://$(LINUX_PUBLIC_IP):8082"
+	@echo "  WinAuth (ALB経由): https://$(ALB_DNS_NAME)"
 	@echo ""
 	@echo "$(YELLOW)🖥️ RDP接続 (Administrator):$(NC)"
 	@echo "  DC1:               rdp://$(DC1_IP)"
@@ -421,24 +362,21 @@ deploy: deploy-domain-controllers deploy-windows-clients deploy-linux-app ## Dep
 ##@ Information & Testing
 ##---------------------------------------------------------------------
 
-show-info: get-cloudformation-outputs ## Show all connection information
+show-info: get-cloudformation-outputs ## 接続情報を表示
 	@echo "$(GREEN)✅ 接続情報を表示しました$(NC)"
 
-test-urls: get-cloudformation-outputs ## Test application URLs
+test-urls: get-cloudformation-outputs ## アプリケーションURLをテスト
 	@echo "$(GREEN)アプリケーションURLをテスト中...$(NC)"
 	@echo ""
-	@echo "$(YELLOW)🌐 直接接続テスト:$(NC)"
-	@curl -s -o /dev/null -w "  Status: %{http_code} - %{url_effective}\n" http://$(LINUX_PUBLIC_IP):8082 || echo "  ❌ 直接接続失敗"
-	@echo ""
 	@echo "$(YELLOW)🌐 ALB経由テスト:$(NC)"
-	@curl -s -o /dev/null -w "  Status: %{http_code} - %{url_effective}\n" http://$(ALB_DNS_NAME) || echo "  ❌ ALB経由接続失敗"
+	@curl -s -o /dev/null -w "  Status: %{http_code} - %{url_effective}\n" https://$(ALB_DNS_NAME) || echo "  ❌ ALB経由接続失敗"
 	@echo ""
 
 ##---------------------------------------------------------------------
 ##@ Maintenance
 ##---------------------------------------------------------------------
 
-clean: ## Remove generated files
+clean: ## 生成されたファイルを削除
 	@echo "$(GREEN)生成されたファイルを削除中...$(NC)"
 	@rm -f ansible/inventory/inventory.yml
 	@echo "$(GREEN)✓ クリーンアップが完了しました$(NC)"
