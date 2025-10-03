@@ -9,11 +9,13 @@ services:
     volumes:
       - ./config/application.properties:/app/application.properties:ro
       - ./config/application-kerberos.properties:/app/application-kerberos.properties:ro
-      - ./config/krb5.conf:/etc/krb5.conf:ro
-      - ./config/winauth.keytab:/etc/winauth.keytab:ro
+      - ./config/krb5.conf:/app/krb5.conf:ro
+      - ./config/winauth.keytab:/app/winauth.keytab:ro
     environment:
       - SPRING_PROFILES_ACTIVE=kerberos
       - SPRING_CONFIG_LOCATION=file:/app/application.properties,file:/app/application-kerberos.properties
+      - KRB5_CONFIG=/app/krb5.conf
+      - JAVA_TOOL_OPTIONS=-Djava.security.krb5.conf=/app/krb5.conf
     networks:
       - winauth-network
     restart: unless-stopped
