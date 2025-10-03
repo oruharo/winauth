@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: winauth-kerberos-app
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./config/application.properties:/app/application.properties:ro
+      - ./config/application-kerberos.properties:/app/application-kerberos.properties:ro
+      - ./config/krb5.conf:/etc/krb5.conf:ro
+      - ./config/winauth.keytab:/etc/winauth.keytab:ro
+    environment:
+      - SPRING_PROFILES_ACTIVE=kerberos
+      - SPRING_CONFIG_LOCATION=file:/app/application.properties,file:/app/application-kerberos.properties
+    networks:
+      - winauth-network
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    container_name: winauth-kerberos-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    networks:
+      - winauth-network
+    restart: unless-stopped
+
+networks:
+  winauth-network:
+    driver: bridge

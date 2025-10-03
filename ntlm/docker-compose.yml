@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: winauth-ntlm-app
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./config/application.properties:/app/application.properties:ro
+      - ./config/application-ntlm.properties:/app/application-ntlm.properties:ro
+    environment:
+      - SPRING_PROFILES_ACTIVE=ntlm
+      - SPRING_CONFIG_LOCATION=file:/app/application.properties,file:/app/application-ntlm.properties
+    networks:
+      - winauth-network
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    container_name: winauth-ntlm-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    networks:
+      - winauth-network
+    restart: unless-stopped
+
+networks:
+  winauth-network:
+    driver: bridge
