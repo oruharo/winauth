@@ -4,7 +4,7 @@ server.port=8082
 
 # Kerberos Configuration - RC4 and AES encryption enabled
 kerberos.principal=${KERBEROS_PRINCIPAL:HTTP/{{ alb_dns_name | default(app_hostname) }}@{{ primary_realm }}}
-kerberos.keytab=${KERBEROS_KEYTAB:{{ keytab_dir }}/winauth-combined.keytab}
+kerberos.keytab=${KERBEROS_KEYTAB:/config/winauth.keytab}
 kerberos.debug=true
 
 # Cross-origin configuration
