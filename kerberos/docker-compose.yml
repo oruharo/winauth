@@ -7,10 +7,10 @@ services:
     ports:
       - "8082:8082"
     volumes:
-      - ./config/application.properties:/config/application.properties:ro
-      - ./config/application-kerberos.properties:/config/application-kerberos.properties:ro
-      - ./config/krb5.conf:/config/krb5.conf:ro
-      - ./config/winauth.keytab:/config/winauth.keytab:ro
+      - ../../app-config/application.properties:/config/application.properties:ro
+      - ../../app-config/application-kerberos.properties:/config/application-kerberos.properties:ro
+      - ../../app-config/krb5.conf:/config/krb5.conf:ro
+      - ../../app-config/winauth.keytab:/config/winauth.keytab:ro
     environment:
       - SPRING_PROFILES_ACTIVE=kerberos
       - SPRING_CONFIG_LOCATION=file:/config/application.properties,file:/config/application-kerberos.properties

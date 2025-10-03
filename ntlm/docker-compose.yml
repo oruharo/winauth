@@ -7,8 +7,8 @@ services:
     ports:
       - "8082:8082"
     volumes:
-      - ./config/application.properties:/config/application.properties:ro
-      - ./config/application-ntlm.properties:/config/application-ntlm.properties:ro
+      - ../../app-config/application.properties:/config/application.properties:ro
+      - ../../app-config/application-ntlm.properties:/config/application-ntlm.properties:ro
     environment:
       - SPRING_PROFILES_ACTIVE=ntlm
       - SPRING_CONFIG_LOCATION=file:/config/application.properties,file:/config/application-ntlm.properties
