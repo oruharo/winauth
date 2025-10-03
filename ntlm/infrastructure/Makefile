@@ -259,6 +259,7 @@ ansible/inventory/inventory.yml: get-cloudformation-outputs
 		echo "    dc2_ip: \"10.0.20.10\""; \
 		echo "    app_hostname: \"winauth.app.local\""; \
 		echo "    app_private_ip: \"10.0.30.10\""; \
+		echo "    alb_dns_name: \"$(ALB_DNS_NAME)\""; \
 		echo ""; \
 		echo "    # Application settings"; \
 		echo "    java_package: \"java-17-amazon-corretto-devel\""; \
