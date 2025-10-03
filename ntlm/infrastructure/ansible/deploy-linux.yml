@@ -140,6 +140,26 @@
         group: "{{ app_user }}"
         mode: '0644'
 
+    - name: Stop old winauth service if exists
+      systemd:
+        name: winauth
+        state: stopped
+      ignore_errors: yes
+
+    - name: Stop old nginx service if exists
+      systemd:
+        name: nginx
+        state: stopped
+      ignore_errors: yes
+
+    - name: Stop all running Docker containers
+      shell: docker stop $(docker ps -aq) || true
+      ignore_errors: yes
+
+    - name: Remove all Docker containers
+      shell: docker rm $(docker ps -aq) || true
+      ignore_errors: yes
+
     - name: Build and start Docker containers
       shell: |
         cd {{ app_dir }}/source/ntlm
