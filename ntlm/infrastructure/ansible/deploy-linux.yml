@@ -123,11 +123,19 @@
         npm install --legacy-peer-deps
         npm run build
       become_user: "{{ app_user }}"
-    
+
+    - name: Create config directory in source
+      file:
+        path: "{{ app_dir }}/source/ntlm/config"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+
     - name: Create application configuration
       template:
         src: application.properties.j2
-        dest: "{{ app_dir }}/config/application.properties"
+        dest: "{{ app_dir }}/source/ntlm/config/application.properties"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0644'
@@ -135,7 +143,7 @@
     - name: Create NTLM application configuration
       template:
         src: application-ntlm.properties.j2
-        dest: "{{ app_dir }}/config/application-ntlm.properties"
+        dest: "{{ app_dir }}/source/ntlm/config/application-ntlm.properties"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0644'
