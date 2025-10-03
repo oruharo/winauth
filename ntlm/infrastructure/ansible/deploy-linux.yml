@@ -110,20 +110,6 @@
         force: yes
       become_user: "{{ app_user }}"
 
-    - name: Install Node.js 22 LTS
-      dnf:
-        name:
-          - nodejs22
-          - nodejs22-npm
-        state: present
-
-    - name: Build WinAuth client application
-      shell: |
-        cd {{ app_dir }}/source/ntlm/client
-        npm install --legacy-peer-deps
-        npm run build
-      become_user: "{{ app_user }}"
-
     - name: Create app config directory
       file:
         path: "{{ app_dir }}/app-config"
