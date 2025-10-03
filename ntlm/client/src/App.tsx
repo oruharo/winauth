@@ -111,7 +111,7 @@ function App() {
         
         <div className="button-group">
           <button onClick={handleWindowsAuth} disabled={loading}>
-            Windows統合認証（NTLM）
+            ユーザー情報取得
           </button>
           <button onClick={handleLogout} disabled={loading} className="logout-btn">
             ログアウト
@@ -120,14 +120,13 @@ function App() {
 
         {loading && <div className="loading">処理中...</div>}
         
-        {result && (
-          <div className={`result ${result.success ? 'success' : 'error'}`}>
-            <h2>{result.success ? '成功' : 'エラー'}</h2>
+        {result && result.userInfo && renderUserInfo(result.userInfo)}
+        
+        {result && !result.success && (
+          <div className="result error">
+            <h2>エラー</h2>
             <p>{result.message}</p>
-            
-            {result && typeof result === 'object' && 'userInfo' in result && result.userInfo && renderUserInfo(result.userInfo)}
-            
-            {result && typeof result === 'object' && 'errorCode' in result && result.errorCode && (
+            {result.errorCode && (
               <p className="error-code">エラーコード: {result.errorCode}</p>
             )}
           </div>
