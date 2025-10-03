@@ -7,15 +7,15 @@ services:
     ports:
       - "8082:8082"
     volumes:
-      - ./config/application.properties:/app/application.properties:ro
-      - ./config/application-kerberos.properties:/app/application-kerberos.properties:ro
-      - ./config/krb5.conf:/app/krb5.conf:ro
-      - ./config/winauth.keytab:/app/winauth.keytab:ro
+      - ./config/application.properties:/config/application.properties:ro
+      - ./config/application-kerberos.properties:/config/application-kerberos.properties:ro
+      - ./config/krb5.conf:/config/krb5.conf:ro
+      - ./config/winauth.keytab:/config/winauth.keytab:ro
     environment:
       - SPRING_PROFILES_ACTIVE=kerberos
-      - SPRING_CONFIG_LOCATION=file:/app/application.properties,file:/app/application-kerberos.properties
-      - KRB5_CONFIG=/app/krb5.conf
-      - JAVA_TOOL_OPTIONS=-Djava.security.krb5.conf=/app/krb5.conf
+      - SPRING_CONFIG_LOCATION=file:/config/application.properties,file:/config/application-kerberos.properties
+      - KRB5_CONFIG=/config/krb5.conf
+      - JAVA_TOOL_OPTIONS=-Djava.security.krb5.conf=/config/krb5.conf
     networks:
       - winauth-network
     restart: unless-stopped

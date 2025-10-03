@@ -7,11 +7,11 @@ services:
     ports:
       - "8082:8082"
     volumes:
-      - ./config/application.properties:/app/application.properties:ro
-      - ./config/application-ntlm.properties:/app/application-ntlm.properties:ro
+      - ./config/application.properties:/config/application.properties:ro
+      - ./config/application-ntlm.properties:/config/application-ntlm.properties:ro
     environment:
       - SPRING_PROFILES_ACTIVE=ntlm
-      - SPRING_CONFIG_LOCATION=file:/app/application.properties,file:/app/application-ntlm.properties
+      - SPRING_CONFIG_LOCATION=file:/config/application.properties,file:/config/application-ntlm.properties
     networks:
       - winauth-network
     restart: unless-stopped
