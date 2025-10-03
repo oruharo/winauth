@@ -111,35 +111,28 @@
         enabled: yes
         daemon_reload: yes
     
-    - name: Create WinAuth source directory
+    - name: Check if source directory is a git repository
+      stat:
+        path: "{{ app_dir }}/source/.git"
+      register: git_repo_check
+
+    - name: Remove old source directory if not a git repository
       file:
         path: "{{ app_dir }}/source"
-        state: directory
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: '0755'
+        state: absent
+      when: not git_repo_check.stat.exists
 
-    - name: Copy WinAuth server source
-      copy:
-        src: "{{ playbook_dir }}/../../server/"
-        dest: "{{ app_dir }}/source/server/"
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: '0644'
-        directory_mode: '0755'
-
-    - name: Copy WinAuth client source
-      copy:
-        src: "{{ playbook_dir }}/../../client/"
-        dest: "{{ app_dir }}/source/client/"
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: '0644'
-        directory_mode: '0755'
+    - name: Clone or update WinAuth repository from GitHub
+      git:
+        repo: "https://github.com/oruharo/winauth.git"
+        dest: "{{ app_dir }}/source"
+        version: main
+        force: yes
+      become_user: "{{ app_user }}"
 
     - name: Build WinAuth server application
       shell: |
-        cd {{ app_dir }}/source/server
+        cd {{ app_dir }}/source/kerberos/server
         mvn clean package -DskipTests
         cp target/*.jar {{ app_dir }}/winauth-server.jar
       become_user: "{{ app_user }}"
@@ -153,11 +146,13 @@
 
     - name: Build WinAuth client application
       shell: |
-        cd {{ app_dir }}/source/client
-        npm install
+        cd {{ app_dir }}/source/kerberos/client
+        npm install --legacy-peer-deps
         npm run build
+        rm -rf {{ app_dir }}/client-dist
         cp -r dist {{ app_dir }}/client-dist
       become_user: "{{ app_user }}"
+      register: client_build_result
 
     - name: Install nginx for client serving
       dnf:
@@ -176,6 +171,12 @@
         name: nginx
         state: started
         enabled: yes
+
+    - name: Restart nginx to clear cache
+      systemd:
+        name: nginx
+        state: restarted
+      when: client_build_result.changed
     
     - name: Create application configuration
       template:
