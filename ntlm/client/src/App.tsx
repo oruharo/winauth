@@ -45,73 +45,14 @@ function App() {
     }
   };
 
-  const renderUserInfo = (userInfo: UserInfo) => (
-    <div className="user-info">
-      <h3>ユーザー情報</h3>
-      <table>
-        <tbody>
-          <tr>
-            <td>ユーザー名:</td>
-            <td>{userInfo.username}</td>
-          </tr>
-          {userInfo.fullName && (
-            <tr>
-              <td>フルネーム:</td>
-              <td>{userInfo.fullName}</td>
-            </tr>
-          )}
-          {userInfo.domain && (
-            <tr>
-              <td>ドメイン:</td>
-              <td>{userInfo.domain}</td>
-            </tr>
-          )}
-          {userInfo.email && (
-            <tr>
-              <td>メール:</td>
-              <td>{userInfo.email}</td>
-            </tr>
-          )}
-          {userInfo.sid && (
-            <tr>
-              <td>SID:</td>
-              <td className="sid">{userInfo.sid}</td>
-            </tr>
-          )}
-          {userInfo.authenticationType && (
-            <tr>
-              <td>認証タイプ:</td>
-              <td>{userInfo.authenticationType}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-      
-      {userInfo.groups && userInfo.groups.length > 0 && (
-        <div className="groups">
-          <h4>所属グループ</h4>
-          <ul>
-            {userInfo.groups.map((group: GroupInfo, index: number) => (
-              <li key={index}>
-                <strong>{group.name}</strong>
-                {group.fullName && ` - ${group.fullName}`}
-                {group.description && <div className="group-desc">{group.description}</div>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <div className="App">
       <header className="App-header">
         <h1>Windows NTLM Authentication Test</h1>
-        
+
         <div className="button-group">
           <button onClick={handleWindowsAuth} disabled={loading}>
-            Windows統合認証（NTLM）
+            ユーザー情報取得
           </button>
           <button onClick={handleLogout} disabled={loading} className="logout-btn">
             ログアウト
@@ -119,15 +60,21 @@ function App() {
         </div>
 
         {loading && <div className="loading">処理中...</div>}
-        
-        {result && (
-          <div className={`result ${result.success ? 'success' : 'error'}`}>
-            <h2>{result.success ? '成功' : 'エラー'}</h2>
+
+        {result && result.success && (
+          <div className="user-info">
+            <h3>認証結果</h3>
+            <pre style={{ textAlign: 'left', background: '#f5f5f5', padding: '20px', borderRadius: '8px', overflow: 'auto' }}>
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </div>
+        )}
+
+        {result && !result.success && (
+          <div className="result error">
+            <h2>エラー</h2>
             <p>{result.message}</p>
-            
-            {result && typeof result === 'object' && 'userInfo' in result && result.userInfo && renderUserInfo(result.userInfo)}
-            
-            {result && typeof result === 'object' && 'errorCode' in result && result.errorCode && (
+            {result.errorCode && (
               <p className="error-code">エラーコード: {result.errorCode}</p>
             )}
           </div>
