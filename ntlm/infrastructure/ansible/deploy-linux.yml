@@ -5,31 +5,6 @@
   gather_facts: yes
   
   tasks:
-    - name: Set stack name variable
-      set_fact:
-        stack_name_var: "{{ lookup('env', 'STACK_NAME') }}"
-      run_once: true
-
-    - name: Set default stack name if empty
-      set_fact:
-        stack_name_var: "has-ntlm-test-0001"
-      run_once: true
-      when: stack_name_var == "" or stack_name_var is not defined
-
-    - name: Get ALB DNS name from CloudFormation
-      delegate_to: localhost
-      become: no
-      amazon.aws.cloudformation_info:
-        stack_name: "{{ stack_name_var }}"
-      register: stack_info
-      run_once: true
-
-    - name: Set ALB DNS name fact
-      set_fact:
-        alb_dns_name: "{{ stack_info.cloudformation[stack_name_var].stack_outputs.ALBDNSName }}"
-      run_once: true
-      when: stack_info.cloudformation is defined and stack_name_var in stack_info.cloudformation
-
     - name: Update all packages
       dnf:
         name: "*"
@@ -38,15 +13,34 @@
     - name: Install required packages
       dnf:
         name:
-          - "{{ java_package }}"
           - git
-          - maven
+          - docker
         state: present
+
+    - name: Install Docker Compose plugin
+      shell: |
+        mkdir -p /usr/local/lib/docker/cli-plugins
+        curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+        chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+      args:
+        creates: /usr/local/lib/docker/cli-plugins/docker-compose
     
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ec2-user to docker group
+      user:
+        name: "{{ app_user }}"
+        groups: docker
+        append: yes
+
     - name: Set hostname
       hostname:
         name: "{{ app_hostname }}"
-    
+
     - name: Add domain controllers to /etc/hosts
       lineinfile:
         path: /etc/hosts
@@ -63,19 +57,14 @@
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0755'
-    
-    - name: Create systemd service file
-      template:
-        src: winauth.service.j2
-        dest: /etc/systemd/system/winauth.service
-        mode: '0644'
-      notify: reload systemd
-    
-    - name: Enable winauth service
-      systemd:
-        name: winauth
-        enabled: yes
-        daemon_reload: yes
+
+    - name: Create config directory
+      file:
+        path: "{{ app_dir }}/config"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
     
     - name: Check if source directory is a git repository
       stat:
@@ -96,85 +85,57 @@
         force: yes
       become_user: "{{ app_user }}"
 
-    - name: Build WinAuth server application
-      shell: |
-        cd {{ app_dir }}/source/ntlm/server
-        mvn clean package -DskipTests
-        cp target/*.jar {{ app_dir }}/winauth-server.jar
-      become_user: "{{ app_user }}"
+    - name: Create app config directory
+      file:
+        path: "{{ app_dir }}/app-config"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
 
-    - name: Install Node.js 22 LTS
-      dnf:
-        name:
-          - nodejs22
-          - nodejs22-npm
-        state: present
-
-    - name: Build WinAuth client application
-      shell: |
-        cd {{ app_dir }}/source/ntlm/client
-        npm install --legacy-peer-deps
-        npm run build
-        rm -rf {{ app_dir }}/client-dist
-        cp -r dist {{ app_dir }}/client-dist
-      become_user: "{{ app_user }}"
-      register: client_build_result
-
-    - name: Install nginx for client serving
-      dnf:
-        name: nginx
-        state: present
-
-    - name: Configure nginx for ALB environment
-      template:
-        src: nginx-winauth-alb.conf.j2
-        dest: /etc/nginx/conf.d/winauth.conf
-        mode: '0644'
-      notify: reload nginx
-
-    - name: Start and enable nginx
-      systemd:
-        name: nginx
-        state: started
-        enabled: yes
-
-    - name: Restart nginx to clear cache
-      systemd:
-        name: nginx
-        state: restarted
-      when: client_build_result.changed
-    
     - name: Create application configuration
       template:
         src: application.properties.j2
-        dest: "{{ app_dir }}/application.properties"
+        dest: "{{ app_dir }}/app-config/application.properties"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0644'
-    
+
     - name: Create NTLM application configuration
       template:
         src: application-ntlm.properties.j2
-        dest: "{{ app_dir }}/application-ntlm.properties"
+        dest: "{{ app_dir }}/app-config/application-ntlm.properties"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0644'
-  
-    - name: Restart WinAuth server service
+
+    - name: Stop old winauth service if exists
       systemd:
         name: winauth
-        state: restarted
-        enabled: yes
-        daemon_reload: yes
+        state: stopped
+      ignore_errors: yes
+
+    - name: Stop old nginx service if exists
+      systemd:
+        name: nginx
+        state: stopped
+      ignore_errors: yes
+
+    - name: Stop all running Docker containers
+      shell: docker stop $(docker ps -aq) || true
+      ignore_errors: yes
+
+    - name: Remove all Docker containers
+      shell: docker rm $(docker ps -aq) || true
+      ignore_errors: yes
+
+    - name: Build and start Docker containers
+      shell: |
+        cd {{ app_dir }}/source/ntlm
+        docker compose build
+        docker compose up -d
+      become_user: "{{ app_user }}"
 
 
 
   handlers:
-    - name: reload systemd
-      systemd:
-        daemon_reload: yes
-
-    - name: reload nginx
-      systemd:
-        name: nginx
-        state: reloaded

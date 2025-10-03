@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { 
-  authenticateWithWindows, 
+import {
+  authenticateWithWindows,
   logout
 } from './services/authService';
-import type { AuthResult, UserInfo, GroupInfo } from './services/authService';
+import type { AuthResult } from './services/authService';
 import './App.css';
 
 function App() {
