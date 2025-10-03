@@ -45,70 +45,11 @@ function App() {
     }
   };
 
-  const renderUserInfo = (userInfo: UserInfo) => (
-    <div className="user-info">
-      <h3>ユーザー情報</h3>
-      <table>
-        <tbody>
-          <tr>
-            <td>ユーザー名:</td>
-            <td>{userInfo.username}</td>
-          </tr>
-          {userInfo.fullName && (
-            <tr>
-              <td>フルネーム:</td>
-              <td>{userInfo.fullName}</td>
-            </tr>
-          )}
-          {userInfo.domain && (
-            <tr>
-              <td>ドメイン:</td>
-              <td>{userInfo.domain}</td>
-            </tr>
-          )}
-          {userInfo.email && (
-            <tr>
-              <td>メール:</td>
-              <td>{userInfo.email}</td>
-            </tr>
-          )}
-          {userInfo.sid && (
-            <tr>
-              <td>SID:</td>
-              <td className="sid">{userInfo.sid}</td>
-            </tr>
-          )}
-          {userInfo.authenticationType && (
-            <tr>
-              <td>認証タイプ:</td>
-              <td>{userInfo.authenticationType}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-      
-      {userInfo.groups && userInfo.groups.length > 0 && (
-        <div className="groups">
-          <h4>所属グループ</h4>
-          <ul>
-            {userInfo.groups.map((group: GroupInfo, index: number) => (
-              <li key={index}>
-                <strong>{group.name}</strong>
-                {group.fullName && ` - ${group.fullName}`}
-                {group.description && <div className="group-desc">{group.description}</div>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <div className="App">
       <header className="App-header">
         <h1>Windows NTLM Authentication Test</h1>
-        
+
         <div className="button-group">
           <button onClick={handleWindowsAuth} disabled={loading}>
             ユーザー情報取得
@@ -119,9 +60,16 @@ function App() {
         </div>
 
         {loading && <div className="loading">処理中...</div>}
-        
-        {result && result.userInfo && renderUserInfo(result.userInfo)}
-        
+
+        {result && result.success && (
+          <div className="user-info">
+            <h3>認証結果</h3>
+            <pre style={{ textAlign: 'left', background: '#f5f5f5', padding: '20px', borderRadius: '8px', overflow: 'auto' }}>
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </div>
+        )}
+
         {result && !result.success && (
           <div className="result error">
             <h2>エラー</h2>
