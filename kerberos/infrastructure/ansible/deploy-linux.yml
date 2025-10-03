@@ -129,11 +129,19 @@
         npm install --legacy-peer-deps
         npm run build
       become_user: "{{ app_user }}"
-    
+
+    - name: Create config directory in source
+      file:
+        path: "{{ app_dir }}/source/kerberos/config"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+
     - name: Create Kerberos configuration for Docker
       template:
         src: krb5.conf.j2
-        dest: "{{ app_dir }}/config/krb5.conf"
+        dest: "{{ app_dir }}/source/kerberos/config/krb5.conf"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0644'
@@ -141,7 +149,7 @@
     - name: Upload keytab file to config directory
       copy:
         src: ./keytabs/winauth-combined.keytab
-        dest: "{{ app_dir }}/config/winauth.keytab"
+        dest: "{{ app_dir }}/source/kerberos/config/winauth.keytab"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0600'
@@ -150,7 +158,7 @@
     - name: Create application configuration
       template:
         src: application.properties.j2
-        dest: "{{ app_dir }}/config/application.properties"
+        dest: "{{ app_dir }}/source/kerberos/config/application.properties"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0644'
@@ -158,7 +166,7 @@
     - name: Create Kerberos application configuration
       template:
         src: application-kerberos.properties.j2
-        dest: "{{ app_dir }}/config/application-kerberos.properties"
+        dest: "{{ app_dir }}/source/kerberos/config/application-kerberos.properties"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0644'
