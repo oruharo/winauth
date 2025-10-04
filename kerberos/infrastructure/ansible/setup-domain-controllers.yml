@@ -98,6 +98,11 @@
         state: present
         password_expired: false
         password_never_expires: true
+        attributes:
+          set:
+            # msDS-SupportedEncryptionTypes: 24 = 0x18 = AES128 (0x08) + AES256 (0x10)
+            # This enforces AES encryption only, excluding RC4
+            msDS-SupportedEncryptionTypes: 24
       when: inventory_hostname == 'dc1'
 
     - name: Create keytab for service account (local hostname)
@@ -118,10 +123,9 @@
       changed_when: spn_result.stdout is not search('Duplicate SPN found')
       failed_when: false
 
-    - name: Create combined keytab for ALB DNS (AES256 + RC4)
+    - name: Create keytab for ALB DNS (AES256 only)
       win_shell: |
         ktpass -princ HTTP/{{ alb_dns_name }}@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass {{ service_password | default('DefaultServicePass123!') }} -out C:\winauth-combined.keytab -setpass -setupn
-        ktpass -princ HTTP/{{ alb_dns_name }}@DOMAIN1.LAB -mapuser svcapp@DOMAIN1.LAB -crypto RC4-HMAC-NT -ptype KRB5_NT_PRINCIPAL -pass {{ service_password | default('DefaultServicePass123!') }} -in C:\winauth-combined.keytab -out C:\winauth-combined.keytab -setpass -setupn
       when: inventory_hostname == 'dc1' and alb_dns_name is defined
 
     - name: Download keytab files
