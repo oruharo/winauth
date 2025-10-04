@@ -8,7 +8,8 @@
 CMDLINE_KEY_NAME := $(filter command line,$(origin KEY_NAME))
 CMDLINE_ADMIN_PASSWORD := $(filter command line,$(origin ADMIN_PASSWORD))
 CMDLINE_USER_PASSWORD := $(filter command line,$(origin USER_PASSWORD))
-CMDLINE_PREFIX := $(filter command line,$(origin PREFIX))
+CMDLINE_STACK_NAME := $(filter command line,$(origin STACK_NAME))
+CMDLINE_ENV_PREFIX := $(filter command line,$(origin ENV_PREFIX))
 CMDLINE_OWNER := $(filter command line,$(origin OWNER))
 CMDLINE_SERVICE_PASSWORD := $(filter command line,$(origin SERVICE_PASSWORD))
 CMDLINE_TRUST_PASSWORD := $(filter command line,$(origin TRUST_PASSWORD))
@@ -17,7 +18,8 @@ CMDLINE_TRUST_PASSWORD := $(filter command line,$(origin TRUST_PASSWORD))
 -include .env
 
 # デフォルト設定
-PREFIX ?= KrbTest
+STACK_NAME ?=
+ENV_PREFIX ?=
 OWNER ?= $(shell echo $${USER:-anyone})
 SSH_KEY_PATH ?= ~/.ssh/$(KEY_NAME).pem
 
@@ -48,14 +50,14 @@ help: ## ヘルプメッセージを表示
 	@awk 'BEGIN {FS = ":.*##"; printf "\n\033[34mAWS KERBEROS環境 アプリケーション設定 Makefile\033[0m\n\nUsage:\n  1. 設定:          make \033[36mset-config\033[0m\n  2. インフラ構築: make \033[36minfrastructure\033[0m\n  3. デプロイ:      make \033[36mdeploy\033[0m\n\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 set-config: ## 設定を対話式で入力して.envファイルに保存
-            ## パラメータ指定例: make set-config KEY_NAME=xxx ADMIN_PASSWORD=xxx USER_PASSWORD=xxx PREFIX=xxx OWNER=xxx SERVICE_PASSWORD=xxx TRUST_PASSWORD=xxx
+            ## パラメータ指定例: make set-config KEY_NAME=xxx ADMIN_PASSWORD=xxx USER_PASSWORD=xxx STACK_NAME=xxx ENV_PREFIX=xxx OWNER=xxx SERVICE_PASSWORD=xxx TRUST_PASSWORD=xxx
 	@# コマンドラインからパラメータが指定されている場合は全て必須
 	@if [ -n "$(CMDLINE_KEY_NAME)" ] || [ -n "$(CMDLINE_ADMIN_PASSWORD)" ] || [ -n "$(CMDLINE_USER_PASSWORD)" ] || \
-	   [ -n "$(CMDLINE_PREFIX)" ] || [ -n "$(CMDLINE_OWNER)" ] || [ -n "$(CMDLINE_SERVICE_PASSWORD)" ] || [ -n "$(CMDLINE_TRUST_PASSWORD)" ]; then \
+	   [ -n "$(CMDLINE_STACK_NAME)" ] || [ -n "$(CMDLINE_ENV_PREFIX)" ] || [ -n "$(CMDLINE_OWNER)" ] || [ -n "$(CMDLINE_SERVICE_PASSWORD)" ] || [ -n "$(CMDLINE_TRUST_PASSWORD)" ]; then \
 		if [ -z "$(CMDLINE_KEY_NAME)" ] || [ -z "$(CMDLINE_ADMIN_PASSWORD)" ] || [ -z "$(CMDLINE_USER_PASSWORD)" ] || \
-		   [ -z "$(CMDLINE_PREFIX)" ] || [ -z "$(CMDLINE_OWNER)" ] || [ -z "$(CMDLINE_SERVICE_PASSWORD)" ] || [ -z "$(CMDLINE_TRUST_PASSWORD)" ]; then \
+		   [ -z "$(CMDLINE_STACK_NAME)" ] || [ -z "$(CMDLINE_ENV_PREFIX)" ] || [ -z "$(CMDLINE_OWNER)" ] || [ -z "$(CMDLINE_SERVICE_PASSWORD)" ] || [ -z "$(CMDLINE_TRUST_PASSWORD)" ]; then \
 			echo "$(RED)エラー: パラメータ指定時は全てのパラメータが必須です$(NC)"; \
-			echo "必須: KEY_NAME, ADMIN_PASSWORD, USER_PASSWORD, PREFIX, OWNER, SERVICE_PASSWORD, TRUST_PASSWORD"; \
+			echo "必須: KEY_NAME, ADMIN_PASSWORD, USER_PASSWORD, STACK_NAME, ENV_PREFIX, OWNER, SERVICE_PASSWORD, TRUST_PASSWORD"; \
 			exit 1; \
 		fi; \
 		echo "# Auto-generated configuration" > .env; \
@@ -63,7 +65,8 @@ set-config: ## 設定を対話式で入力して.envファイルに保存
 		echo "SSH_KEY_PATH=$(SSH_KEY_PATH)" >> .env; \
 		echo "ADMIN_PASSWORD=$(ADMIN_PASSWORD)" >> .env; \
 		echo "USER_PASSWORD=$(USER_PASSWORD)" >> .env; \
-		echo "PREFIX=$(PREFIX)" >> .env; \
+		echo "STACK_NAME=$(STACK_NAME)" >> .env; \
+		echo "ENV_PREFIX=$(ENV_PREFIX)" >> .env; \
 		echo "OWNER=$(OWNER)" >> .env; \
 		echo "SERVICE_PASSWORD=$(SERVICE_PASSWORD)" >> .env; \
 		echo "TRUST_PASSWORD=$(TRUST_PASSWORD)" >> .env; \
@@ -88,13 +91,15 @@ set-config: ## 設定を対話式で入力して.envファイルに保存
 		current_user=$$(grep "^USER_PASSWORD=" .env 2>/dev/null | cut -d= -f2); \
 		read -p "USER_PASSWORD (ユーザーパスワード)$${current_user:+ [$$current_user]}: " user_pass; \
 		user_pass=$${user_pass:-$$current_user}; \
-		current_prefix=$$(grep "^PREFIX=" .env 2>/dev/null | cut -d= -f2); \
-		default_prefix=$${current_prefix:-KrbTest}; \
-		read -p "PREFIX [$$default_prefix]: " prefix; \
-		prefix=$${prefix:-$$default_prefix}; \
+		current_stack=$$(grep "^STACK_NAME=" .env 2>/dev/null | cut -d= -f2); \
+		read -p "STACK_NAME (CloudFormationスタック名)$${current_stack:+ [$$current_stack]}: " stack_name; \
+		stack_name=$${stack_name:-$$current_stack}; \
+		current_env=$$(grep "^ENV_PREFIX=" .env 2>/dev/null | cut -d= -f2); \
+		read -p "ENV_PREFIX (リソース名prefix、1-10文字英数字)$${current_env:+ [$$current_env]}: " env_prefix; \
+		env_prefix=$${env_prefix:-$$current_env}; \
 		current_owner=$$(grep "^OWNER=" .env 2>/dev/null | cut -d= -f2); \
 		default_owner=$${current_owner:-$${USER:-anyone}}; \
-		read -p "OWNER (リソースタグ) [$$default_owner]: " owner; \
+		read -p "OWNER (タグ用、1-10文字英数字) [$$default_owner]: " owner; \
 		owner=$${owner:-$$default_owner}; \
 		current_svc=$$(grep "^SERVICE_PASSWORD=" .env 2>/dev/null | cut -d= -f2); \
 		default_svc=$${current_svc:-DefaultServicePass123!}; \
@@ -109,7 +114,8 @@ set-config: ## 設定を対話式で入力して.envファイルに保存
 		echo "SSH_KEY_PATH=$$ssh_path" >> .env; \
 		echo "ADMIN_PASSWORD=$$admin_pass" >> .env; \
 		echo "USER_PASSWORD=$$user_pass" >> .env; \
-		echo "PREFIX=$$prefix" >> .env; \
+		echo "STACK_NAME=$$stack_name" >> .env; \
+		echo "ENV_PREFIX=$$env_prefix" >> .env; \
 		echo "OWNER=$$owner" >> .env; \
 		echo "SERVICE_PASSWORD=$$svc_pass" >> .env; \
 		echo "TRUST_PASSWORD=$$trust_pass" >> .env; \
@@ -164,8 +170,6 @@ setup-ansible: check-env
 
 # スタック名の取得
 get-stack-name: check-env
-	$(eval STACK_NAME := $(shell aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE --query "StackSummaries[?starts_with(StackName, \`$(PREFIX)-kerberos-test-\`)].StackName" --output text | head -1))
-	@test -n "$(STACK_NAME)" || (echo "$(RED)エラー: $(PREFIX)-kerberos-test-* スタックが見つかりません$(NC)" && exit 1)
 	@echo "$(GREEN)スタック名: $(STACK_NAME)$(NC)"
 
 # CloudFormation出力の取得
@@ -301,11 +305,11 @@ ansible/inventory/inventory.yml: get-cloudformation-outputs
 # ALB設定
 .run-alb-config: ansible/inventory/inventory.yml
 	@echo "$(GREEN)ALB Target Groups設定...$(NC)"
-	@export STACK_NAME="$(STACK_NAME)"; export PREFIX="$(PREFIX)"; \
+	@export STACK_NAME="$(STACK_NAME)"; export ENV_PREFIX="$(ENV_PREFIX)"; export OWNER="$(OWNER)"; \
 	ansible-playbook -i localhost, ansible/setup-alb-target-groups.yml -v
 	@echo "$(GREEN)✓ ALB Target Groups作成が完了しました$(NC)"
 	@echo "$(GREEN)ALB Listeners設定...$(NC)"
-	@export STACK_NAME="$(STACK_NAME)"; \
+	@export STACK_NAME="$(STACK_NAME)"; export ENV_PREFIX="$(ENV_PREFIX)"; export OWNER="$(OWNER)"; \
 	ansible-playbook -i localhost, ansible/setup-alb-listeners.yml -v
 	@echo "$(GREEN)✓ ALB Listeners作成が完了しました$(NC)"
 
@@ -321,22 +325,21 @@ ansible/inventory/inventory.yml: get-cloudformation-outputs
 
 infrastructure: check-env ## AWSインフラを構築（CloudFormation）
 	@echo "$(GREEN)CloudFormationでインフラを構築中...$(NC)"
-	@STACK_NAME="$(PREFIX)-kerberos-test-$$(date +%s)"; \
-	echo "$(GREEN)スタック名: $$STACK_NAME$(NC)"; \
+	@echo "$(GREEN)スタック名: $(STACK_NAME)$(NC)"; \
 	aws cloudformation create-stack \
-		--stack-name $$STACK_NAME \
+		--stack-name $(STACK_NAME) \
 		--template-body file://cloudformation.yaml \
 		--parameters \
 			ParameterKey=KeyName,ParameterValue=$(KEY_NAME) \
 			ParameterKey=AdminPassword,ParameterValue=$(ADMIN_PASSWORD) \
 			ParameterKey=UserPassword,ParameterValue=$(USER_PASSWORD) \
-			ParameterKey=Prefix,ParameterValue=$(PREFIX) \
+			ParameterKey=Prefix,ParameterValue=$(ENV_PREFIX) \
 			ParameterKey=Owner,ParameterValue=$(OWNER) \
 		--capabilities CAPABILITY_IAM \
 		--region ap-northeast-1; \
 	echo "$(YELLOW)インフラ構築完了を待機中...（約10分）$(NC)"; \
 	aws cloudformation wait stack-create-complete \
-		--stack-name $$STACK_NAME \
+		--stack-name $(STACK_NAME) \
 		--region ap-northeast-1; \
 	echo "$(GREEN)✓ インフラ構築が完了しました$(NC)"; \
 	echo ""; \
