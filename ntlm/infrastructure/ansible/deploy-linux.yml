@@ -112,18 +112,6 @@
         group: "{{ app_user }}"
         mode: '0644'
 
-    - name: Stop old winauth service if exists
-      systemd:
-        name: winauth
-        state: stopped
-      ignore_errors: yes
-
-    - name: Stop old nginx service if exists
-      systemd:
-        name: nginx
-        state: stopped
-      ignore_errors: yes
-
     - name: Stop all running Docker containers
       shell: docker stop $(docker ps -aq) || true
       ignore_errors: yes
@@ -139,7 +127,7 @@
     - name: Build Docker containers with verbose output
       shell: |
         cd {{ app_dir }}/source/ntlm
-        docker compose build --progress=plain --no-cache
+        docker compose build --no-cache
       become_user: "{{ app_user }}"
       async: 1800
       poll: 10

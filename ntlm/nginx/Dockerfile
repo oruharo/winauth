@@ -5,8 +5,8 @@ WORKDIR /build
 
 RUN --mount=type=bind,source=client,target=. \
     --mount=type=cache,target=/root/.npm \
-    NODE_OPTIONS="--max-old-space-size=512" npm install --legacy-peer-deps && \
-    NODE_OPTIONS="--max-old-space-size=512" npm run build
+    npm install --legacy-peer-deps && \
+    npm run build
 
 # Stage 2: Nginx runtime
 FROM nginx:alpine

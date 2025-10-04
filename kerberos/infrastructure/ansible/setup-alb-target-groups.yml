@@ -8,9 +8,9 @@
   gather_facts: false
   vars:
     # Stack name to get ALB ARN and VPC ID
-    stack_name: "{{ lookup('env', 'STACK_NAME') | default('has-kerberos-test') }}"
-    env_prefix: "{{ lookup('env', 'ENV_PREFIX') | default('dev') }}"
-    owner: "{{ lookup('env', 'OWNER') | default('anyone') }}"
+    stack_name: "{{ lookup('env', 'STACK_NAME') }}"
+    env_prefix: "{{ lookup('env', 'ENV_PREFIX') }}"
+    owner: "{{ lookup('env', 'OWNER') }}"
 
   tasks:
     - name: Install packaging library first (required for pip module)

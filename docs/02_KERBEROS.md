@@ -455,10 +455,10 @@ sequenceDiagram
 | DC2 | t3.medium | Windows Server 2022 | DOMAIN2.LABドメインコントローラー | 約$30 |
 | WIN1 | t3.small | Windows Server 2022 | DOMAIN1.LABテストクライアント | 約$15 |
 | WIN2 | t3.small | Windows Server 2022 | DOMAIN2.LABテストクライアント | 約$15 |
-| Linux App | t3.small | Amazon Linux 2023 | アプリケーションサーバー<br/>(Docker + Spring Boot) | 約$15 |
+| Linux App | t3.medium | Amazon Linux 2023 | アプリケーションサーバー<br/>(Docker + Spring Boot) | 約$30 |
 | ALB | - | - | Application Load Balancer | 約$20 |
 | ネットワーク | - | - | VPC、サブネット、IGW | 約$5 |
-| **合計** | - | - | - | **約$130/月** |
+| **合計** | - | - | - | **約$145/月** |
 
 ## 次の章へ
 
