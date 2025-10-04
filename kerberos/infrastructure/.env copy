@@ -1,0 +1,8 @@
+# Auto-generated configuration
+KEY_NAME=hashi-kerberos-key
+SSH_KEY_PATH=~/.aws/hashi-kerberos-key.pem
+ADMIN_PASSWORD=Aa@12341234
+USER_PASSWORD=Aa@12341234
+PREFIX=has2
+OWNER=hashiro
+TRUST_PASSWORD=DefaultTrustPass123!
