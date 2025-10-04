@@ -12,39 +12,22 @@ Kerberos認証を使用したWindows統合認証システムの環境構築手�
 ### 環境構築（Makefile使用）
 
 ```bash
-# 全環境を一括デプロイ
-make deploy
+# 1. 設定
+make set-config
 
-# または個別にデプロイ
+# 2. インフラ構築（CloudFormation）
+make infrastructure
+
+# 3. アプリケーションデプロイ（Ansible）
+make deploy
+```
+
+または個別にデプロイ：
+
+```bash
 make setup-domain        # ドメインコントローラー設定
 make setup-clients       # Windowsクライアント設定
 make deploy-linux        # Linuxアプリケーションデプロイ
-```
-
-### パラメータ設定
-
-デプロイ前にパラメータを保存してください：
-
-```bash
-# パラメータを設定して保存（必須パラメータ）
-make save-config \
-  KEY_NAME=my-keypair \
-  SSH_KEY_PATH=~/.ssh/my-keypair.pem \
-  ADMIN_PASSWORD=YourAdminPass \
-  USER_PASSWORD=YourUserPass
-
-# オプションパラメータも指定可能
-make save-config \
-  KEY_NAME=my-keypair \
-  SSH_KEY_PATH=~/.ssh/my-keypair.pem \
-  ADMIN_PASSWORD=YourAdminPass \
-  USER_PASSWORD=YourUserPass \
-  PREFIX=MyTest \
-  SERVICE_PASSWORD=YourServicePass \
-  TRUST_PASSWORD=YourTrustPass
-
-# 保存された設定を確認
-cat .env
 ```
 
 ## 📁 ファイル構成
@@ -85,8 +68,8 @@ kerberos/infrastructure/
 
 ### 1. インフラストラクチャ作成
 ```bash
-# CloudFormationでAWSリソース作成
-make create-stack
+# CloudFormationでAWSリソース作成（約10分）
+make infrastructure
 ```
 
 ### 2. ドメインコントローラー設定
@@ -105,6 +88,20 @@ make setup-clients
 ```bash
 # Docker環境構築、アプリケーションデプロイ
 make deploy-linux
+```
+
+## ⚠️ 重要な注意事項
+
+### パブリックIPアドレスの変更について
+
+**注意**: インスタンス停止/起動時にパブリックIPアドレスが変更されます。
+
+- **アプリケーションへのアクセス**: ALBのDNS名を使用しているため影響ありません
+- **RDP接続**: インスタンスのパブリックIPが変更されるため、接続先IPの確認が必要です
+
+RDP接続時は以下のコマンドで最新のIPを確認してください：
+```bash
+make show-info
 ```
 
 ## 🧪 動作確認
@@ -151,6 +148,13 @@ sudo ntpdate -q 10.0.10.10
 sudo systemctl status chronyd
 ```
 
+## 🗑️ 環境削除
+
+```bash
+# 全リソース削除
+make destroy
+```
+
 ## 📚 詳細ドキュメント
 
 技術詳細や高度な設定については、以下のドキュメントを参照してください：
@@ -160,34 +164,7 @@ sudo systemctl status chronyd
 - [第4章: クロスドメイン認証](/docs/04_CROSS_DOMAIN.md)
 - [第5章: 環境別セットアップ](/docs/05_SETUP.md)
 - [第6章: トラブルシューティング](/docs/06_TROUBLESHOOTING.md)
-- [Kerberos デプロイガイド](/docs/DEPLOYMENT_GUIDE_KERBEROS.md)
 - [セキュリティガイド](/docs/SECURITY.md)
-
-## 🗑️ 環境削除
-
-```bash
-# 全リソース削除
-make delete-stack
-
-# または個別削除
-make clean-inventory
-```
-
-## ⚙️ 高度な設定
-
-### カスタムパラメータでのデプロイ
-```bash
-# Makefileの変数を上書き
-make deploy STACK_NAME=my-kerberos ADMIN_PASSWORD='YourPassword'
-```
-
-### 特定のホストのみ実行
-```bash
-# Linux サーバーのみ
-ansible-playbook -i ansible/inventory/inventory.yml \
-  ansible/deploy-linux.yml \
-  --limit linux-app
-```
 
 ## 📞 サポート
 

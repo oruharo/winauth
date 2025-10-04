@@ -34,3 +34,37 @@
         members:
           - "{{ target_domain | regex_replace('\\..*$', '') }}\\{{ domain_user }}"
         state: present
+
+    - name: Get ALB DNS name from CloudFormation
+      delegate_to: localhost
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ lookup('env', 'STACK_NAME') }}"
+      register: stack_info
+      run_once: true
+
+    - name: Debug stack_info
+      debug:
+        var: stack_info
+      run_once: true
+
+    - name: Set ALB DNS name fact
+      set_fact:
+        alb_dns_name: "{{ (stack_info.cloudformation | dict2items | first).value.stack_outputs['ALBDNSName'] }}"
+      run_once: true
+
+    - name: Register ALB domain in Intranet zone (HKCU)
+      win_shell: |
+        $albDomain = '{{ alb_dns_name }}'
+        # Split domain into parts and reverse (e.g., example.com -> com\example)
+        $parts = $albDomain -split '\.'
+        [array]::Reverse($parts)
+        $regPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains"
+        foreach ($part in $parts) {
+            $regPath = Join-Path $regPath $part
+        }
+        if (-not (Test-Path $regPath)) {
+            New-Item -Path $regPath -Force | Out-Null
+        }
+        Set-ItemProperty -Path $regPath -Name '*' -Value 1 -Type DWord
+        Set-ItemProperty -Path $regPath -Name 'https' -Value 1 -Type DWord
+        Write-Output "Registered $albDomain in Intranet zone at $regPath"
