@@ -303,6 +303,63 @@ setspn -A HTTP/has-winauth-alb-424888436.ap-northeast-1.elb.amazonaws.com svc-wi
 kerberos.principal=HTTP/has-winauth-alb-424888436.ap-northeast-1.elb.amazonaws.com@DOMAIN1.LAB
 ```
 
+### 6.5.3 Windowsクライアントのドメイン参加失敗
+
+**エラー**: WIN1/WIN2がドメインに参加できない
+
+#### 自動参加が失敗した場合の確認手順
+
+```powershell
+# WIN1/WIN2にRDP接続後、Administratorでログイン
+
+# 1. DNS設定を確認
+ipconfig /all
+# DNSサーバーがドメインコントローラーを指しているか確認
+# WIN1: 10.0.10.10 (DC1)
+# WIN2: 10.0.20.10 (DC2)
+
+# 2. ドメインコントローラーへの到達性確認
+ping 10.0.10.10  # WIN1の場合
+ping 10.0.20.10  # WIN2の場合
+
+# 3. DNS名前解決の確認
+nslookup DOMAIN1.LAB  # WIN1の場合
+nslookup DOMAIN2.LAB  # WIN2の場合
+```
+
+#### 手動でのドメイン参加手順
+
+```powershell
+# WIN1をDOMAIN1.LABに参加させる場合
+$password = ConvertTo-SecureString "設定したAdminPassword" -AsPlainText -Force
+$credential = New-Object System.Management.Automation.PSCredential("DOMAIN1\Administrator", $password)
+Add-Computer -DomainName "DOMAIN1.LAB" -Credential $credential -Force -Restart
+
+# WIN2をDOMAIN2.LABに参加させる場合
+$password = ConvertTo-SecureString "設定したAdminPassword" -AsPlainText -Force
+$credential = New-Object System.Management.Automation.PSCredential("DOMAIN2\Administrator", $password)
+Add-Computer -DomainName "DOMAIN2.LAB" -Credential $credential -Force -Restart
+```
+
+#### DNS設定が正しくない場合
+
+```powershell
+# DNSサーバーアドレスを手動設定
+# WIN1の場合（DC1を参照）
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "10.0.10.10"
+
+# WIN2の場合（DC2を参照）
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "10.0.20.10"
+
+# 設定確認
+Get-DnsClientServerAddress -InterfaceAlias "Ethernet"
+
+# DNSキャッシュクリア
+ipconfig /flushdns
+
+# 再度ドメイン参加を試行
+```
+
 ## 6.6 デバッグ手法
 
 ### 6.6.1 Kerberosデバッグ

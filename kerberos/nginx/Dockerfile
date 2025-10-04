@@ -3,10 +3,13 @@ FROM node:22-alpine AS client-builder
 
 WORKDIR /build
 
-RUN --mount=type=bind,source=client,target=. \
-    --mount=type=cache,target=/root/.npm \
-    npm install --legacy-peer-deps && \
-    npm run build
+# Copy package files and install dependencies
+COPY client/package*.json ./
+RUN npm install --legacy-peer-deps
+
+# Copy source code and build
+COPY client/ ./
+RUN npm run build
 
 # Stage 2: Nginx runtime
 FROM nginx:alpine

@@ -562,7 +562,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', LinuxAMI]
-      InstanceType: t3.small
+      InstanceType: t3.medium
       KeyName: !Ref KeyName
       SubnetId: !Ref AppSubnet
       SecurityGroupIds:

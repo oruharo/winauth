@@ -8,8 +8,9 @@
   gather_facts: false
   vars:
     # Stack name to get ALB ARN and VPC ID
-    stack_name: "{{ lookup('env', 'STACK_NAME') | default('has-kerberos-test') }}"
-    prefix: "{{ lookup('env', 'PREFIX') | default('has') }}"
+    stack_name: "{{ lookup('env', 'STACK_NAME') }}"
+    env_prefix: "{{ lookup('env', 'ENV_PREFIX') }}"
+    owner: "{{ lookup('env', 'OWNER') }}"
 
   tasks:
     - name: Install packaging library first (required for pip module)
@@ -51,7 +52,7 @@
     - name: Check if Nginx Target Group exists
       community.aws.elb_target_group_info:
         names:
-          - "{{ prefix }}-nginx-tg"
+          - "{{ env_prefix }}-nginx-tg"
       register: nginx_tg_info
       ignore_errors: yes
 
@@ -76,14 +77,14 @@
 
     - name: Delete existing Nginx Target Group if exists
       community.aws.elb_target_group:
-        name: "{{ prefix }}-nginx-tg"
+        name: "{{ env_prefix }}-nginx-tg"
         state: absent
       when: nginx_tg_info.target_groups | length > 0
       ignore_errors: yes
 
     - name: Create Nginx Target Group (port 80)
       community.aws.elb_target_group:
-        name: "{{ prefix }}-nginx-tg"
+        name: "{{ env_prefix }}-nginx-tg"
         protocol: http
         port: 80
         vpc_id: "{{ vpc_id }}"
@@ -98,28 +99,28 @@
           - Id: "{{ linux_instance_id }}"
             Port: 80
         tags:
-          Name: "{{ prefix }}-nginx-tg"
-          Owner: "{{ prefix }}"
+          Name: "{{ env_prefix }}-nginx-tg"
+          Owner: "{{ owner }}"
         state: present
       register: nginx_target_group
 
     - name: Check if API Target Group exists
       community.aws.elb_target_group_info:
         names:
-          - "{{ prefix }}-api-tg"
+          - "{{ env_prefix }}-api-tg"
       register: api_tg_info
       ignore_errors: yes
 
     - name: Delete existing API Target Group if exists
       community.aws.elb_target_group:
-        name: "{{ prefix }}-api-tg"
+        name: "{{ env_prefix }}-api-tg"
         state: absent
       when: api_tg_info.target_groups | length > 0
       ignore_errors: yes
 
     - name: Create Spring Boot API Target Group (port 8082)
       community.aws.elb_target_group:
-        name: "{{ prefix }}-api-tg"
+        name: "{{ env_prefix }}-api-tg"
         protocol: http
         port: 8082
         vpc_id: "{{ vpc_id }}"
@@ -135,8 +136,8 @@
           - Id: "{{ linux_instance_id }}"
             Port: 8082
         tags:
-          Name: "{{ prefix }}-api-tg"
-          Owner: "{{ prefix }}"
+          Name: "{{ env_prefix }}-api-tg"
+          Owner: "{{ owner }}"
         state: present
       register: springboot_target_group
 

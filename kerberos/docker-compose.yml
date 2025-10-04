@@ -15,7 +15,7 @@ services:
       - SPRING_PROFILES_ACTIVE=kerberos
       - SPRING_CONFIG_LOCATION=file:/config/application.properties,file:/config/application-kerberos.properties
       - KRB5_CONFIG=/config/krb5.conf
-      - JAVA_TOOL_OPTIONS=-Djava.security.krb5.conf=/config/krb5.conf
+      - JAVA_TOOL_OPTIONS=-Djava.security.krb5.conf=/config/krb5.conf -Dsun.security.krb5.debug=true
     networks:
       - winauth-network
     restart: unless-stopped

@@ -4,25 +4,6 @@
   gather_facts: yes
 
   tasks:
-    - name: Set stack name variable
-      set_fact:
-        stack_name: "{{ lookup('env', 'STACK_NAME') | default('has-kerberos-test-9606') }}"
-      run_once: true
-
-    - name: Get ALB DNS name from CloudFormation
-      delegate_to: localhost
-      become: no
-      amazon.aws.cloudformation_info:
-        stack_name: "{{ stack_name }}"
-      register: stack_info
-      run_once: true
-      when: inventory_hostname == 'dc1'
-
-    - name: Set ALB DNS name fact
-      set_fact:
-        alb_dns_name: "{{ stack_info.cloudformation[stack_name].stack_outputs.ALBDNSName }}"
-      when: inventory_hostname == 'dc1' and stack_info is defined
-
     - name: Reboot if required before domain setup
       win_reboot:
         reboot_timeout: 300

@@ -12,39 +12,22 @@ NTLM認証を使用したWindows統合認証システムの環境構築手順で
 ### 環境構築（Makefile使用）
 
 ```bash
-# 全環境を一括デプロイ
-make deploy
+# 1. 設定
+make set-config
 
-# または個別にデプロイ
+# 2. インフラ構築（CloudFormation）
+make infrastructure
+
+# 3. アプリケーションデプロイ（Ansible）
+make deploy
+```
+
+または個別にデプロイ：
+
+```bash
 make setup-domain        # ドメインコントローラー設定
 make setup-clients       # Windowsクライアント設定
 make deploy-linux        # Linuxアプリケーションデプロイ
-```
-
-### パラメータ設定
-
-デプロイ前にパラメータを保存してください：
-
-```bash
-# パラメータを設定して保存（必須パラメータ）
-make save-config \
-  KEY_NAME=my-keypair \
-  SSH_KEY_PATH=~/.ssh/my-keypair.pem \
-  ADMIN_PASSWORD=YourAdminPass \
-  USER_PASSWORD=YourUserPass
-
-# オプションパラメータも指定可能
-make save-config \
-  KEY_NAME=my-keypair \
-  SSH_KEY_PATH=~/.ssh/my-keypair.pem \
-  ADMIN_PASSWORD=YourAdminPass \
-  USER_PASSWORD=YourUserPass \
-  PREFIX=MyTest \
-  SERVICE_PASSWORD=YourServicePass \
-  TRUST_PASSWORD=YourTrustPass
-
-# 保存された設定を確認
-cat .env
 ```
 
 ## 📁 ファイル構成
@@ -85,8 +68,8 @@ ntlm/infrastructure/
 
 ### 1. インフラストラクチャ作成
 ```bash
-# CloudFormationでAWSリソース作成
-make create-stack
+# CloudFormationでAWSリソース作成（約10分）
+make infrastructure
 ```
 
 ### 2. ドメインコントローラー設定
@@ -108,19 +91,19 @@ make setup-clients
 make deploy-linux
 ```
 
-## ✨ NTLMの利点
+## ⚠️ 重要な注意事項
 
-### Kerberos と比べて設定が簡単
-- ✅ SPN登録不要
-- ✅ Keytab生成不要
-- ✅ krb5.conf設定不要
-- ✅ 両ドメインで追加作業不要
-- ✅ Java 17のRC4問題なし
+### パブリックIPアドレスの変更について
 
-### クロスドメイン対応
-- ✅ 信頼関係があれば自動的に両ドメイン対応
-- ✅ DOMAIN2での作業一切不要
-- ✅ 統合Windows認証（自動ログイン）可能
+**注意**: インスタンス停止/起動時にパブリックIPアドレスが変更されます。
+
+- **アプリケーションへのアクセス**: ALBのDNS名を使用しているため影響ありません
+- **RDP接続**: インスタンスのパブリックIPが変更されるため、接続先IPの確認が必要です
+
+RDP接続時は以下のコマンドで最新のIPを確認してください：
+```bash
+make show-info
+```
 
 ## 🧪 動作確認
 
@@ -131,10 +114,8 @@ make deploy-linux
 4. ドメイン名、ユーザー名が表示される
 
 ### クロスドメイン認証テスト
-```bash
-# WIN1 (DOMAIN1ユーザー) からアクセス → ✅ 成功
-# WIN2 (DOMAIN2ユーザー) からアクセス → ✅ 成功
-```
+- WIN1 (DOMAIN1ユーザー) からアクセス → ✅ 成功
+- WIN2 (DOMAIN2ユーザー) からアクセス → ✅ 成功
 
 ## 🔍 トラブルシューティング
 
@@ -163,62 +144,23 @@ netdom trust DOMAIN1.LAB /domain:DOMAIN2.LAB /verify
 </dependency>
 ```
 
+## 🗑️ 環境削除
+
+```bash
+# 全リソース削除
+make destroy
+```
+
 ## 📚 詳細ドキュメント
 
 技術詳細や高度な設定については、以下のドキュメントを参照してください：
 
 - [第1章: Windows認証の基礎](/docs/01_OVERVIEW.md)
-- [第3章: NTLM認証詳解](/docs/03_NTLM.md)
+- [第3章: NTLM認証詳解](/docs/03_03_NTLM.md)
 - [第4章: クロスドメイン認証](/docs/04_CROSS_DOMAIN.md)
 - [第5章: 環境別セットアップ](/docs/05_SETUP.md)
 - [第6章: トラブルシューティング](/docs/06_TROUBLESHOOTING.md)
-- [NTLM デプロイガイド](/docs/DEPLOYMENT_GUIDE_NTLM.md)
 - [セキュリティガイド](/docs/SECURITY.md)
-
-## 🔒 セキュリティ考慮事項
-
-NTLM認証を使用する場合の必須対策：
-
-### 必須設定
-- ✅ HTTPS強制（TLS 1.2以上）
-- ✅ 社内ネットワーク限定アクセス
-- ✅ NTLMv2強制（NTLMv1無効化）
-- ✅ 強固なパスワードポリシー
-- ✅ 認証ログ監視
-
-### 推奨設定
-- VPN経由のアクセス制御
-- WAFでのレート制限
-- セッション管理の厳格化
-- 定期的なパスワード変更
-
-詳細は[セキュリティガイド](/docs/SECURITY.md)を参照してください。
-
-## 🗑️ 環境削除
-
-```bash
-# 全リソース削除
-make delete-stack
-
-# または個別削除
-make clean-inventory
-```
-
-## ⚙️ 高度な設定
-
-### カスタムパラメータでのデプロイ
-```bash
-# Makefileの変数を上書き
-make deploy STACK_NAME=my-ntlm ADMIN_PASSWORD='YourPassword'
-```
-
-### 特定のホストのみ実行
-```bash
-# Linux サーバーのみ
-ansible-playbook -i ansible/inventory/inventory.yml \
-  ansible/deploy-linux.yml \
-  --limit linux-app
-```
 
 ## 📞 サポート
 

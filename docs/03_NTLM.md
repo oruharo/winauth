@@ -367,6 +367,138 @@ NTLM認証の技術的特徴：
 
 NTLM認証の採用にあたっては、セキュリティ要件・運用環境・実装コストなどを総合的に検討してください。
 
+## 3.10 AWS環境でのシステム構成
+
+### 3.10.1 ネットワーク構成
+
+```
+AWS VPC (10.0.0.0/16)
+├── Subnet 10.0.10.0/24 (AZ-a)
+│   ├── DC1 (DOMAIN1.LAB) - 10.0.10.10
+│   └── WIN1 (クライアント) - 10.0.10.100
+├── Subnet 10.0.20.0/24 (AZ-c)
+│   ├── DC2 (DOMAIN2.LAB) - 10.0.20.10
+│   └── WIN2 (クライアント) - 10.0.20.100
+├── Subnet 10.0.30.0/24 (AZ-a)
+│   └── Linux App Server - 10.0.30.10
+├── Subnet 10.0.40.0/24 (AZ-c)
+│   └── (予備)
+└── Application Load Balancer
+    └── Target: Linux App Server:80
+```
+
+### 3.10.2 システム構成図
+
+```mermaid
+graph TB
+    subgraph "AWS VPC (10.0.0.0/16)"
+        subgraph "Subnet 10.0.10.0/24"
+            DC1[DC1: DOMAIN1.LAB<br/>ドメインコントローラー<br/>10.0.10.10<br/>Windows Server 2022]
+            WIN1[WIN1<br/>Windowsクライアント<br/>10.0.10.100<br/>ドメイン: DOMAIN1.LAB]
+        end
+
+        subgraph "Subnet 10.0.20.0/24"
+            DC2[DC2: DOMAIN2.LAB<br/>ドメインコントローラー<br/>10.0.20.10<br/>Windows Server 2022]
+            WIN2[WIN2<br/>Windowsクライアント<br/>10.0.20.100<br/>ドメイン: DOMAIN2.LAB]
+        end
+
+        subgraph "Subnet 10.0.30.0/24"
+            LINUX[Linuxアプリサーバー<br/>10.0.30.10<br/>Docker + Spring Boot<br/>NTLM認証（Waffle）]
+        end
+
+        ALB[Application Load Balancer<br/>Port 80]
+    end
+
+    subgraph "インターネット"
+        IGW[Internet Gateway]
+        USERS[ユーザー<br/>WIN1/WIN2からアクセス]
+    end
+
+    DC1 <-->|"双方向信頼"| DC2
+    WIN1 -->|"AD認証"| DC1
+    WIN2 -->|"AD認証"| DC2
+    LINUX -->|"NTLM認証"| DC1
+    LINUX -->|"NTLM認証<br/>(信頼関係経由)"| DC2
+
+    USERS -->|"HTTP"| IGW
+    IGW --> ALB
+    ALB -->|"Port 80"| LINUX
+
+    DC1 -.->|"RDP/管理"| IGW
+    DC2 -.->|"RDP/管理"| IGW
+    WIN1 -.->|"RDP/テスト"| IGW
+    WIN2 -.->|"RDP/テスト"| IGW
+
+    style DC1 fill:#4A90E2,color:#fff
+    style DC2 fill:#4A90E2,color:#fff
+    style WIN1 fill:#7ED321,color:#fff
+    style WIN2 fill:#7ED321,color:#fff
+    style LINUX fill:#F5A623,color:#fff
+    style ALB fill:#E94B3C,color:#fff
+    style IGW fill:#9013FE,color:#fff
+```
+
+### 3.10.3 NTLM認証フロー
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー<br/>(WIN1/WIN2)
+    participant Browser as ブラウザ
+    participant ALB as ALB
+    participant App as Linuxアプリ<br/>(Spring Boot + Waffle)
+    participant DC1 as DC1<br/>(DOMAIN1.LAB)
+    participant DC2 as DC2<br/>(DOMAIN2.LAB)
+
+    rect rgba(173, 216, 230, 0.2)
+        Note over User,DC1: シナリオ1: DOMAIN1.LABユーザー認証
+        User->>Browser: アプリケーションアクセス
+        Browser->>ALB: HTTPリクエスト
+        ALB->>App: HTTPリクエスト転送
+        App->>Browser: 401 WWW-Authenticate: NTLM
+        Browser->>ALB: Type 1 Message<br/>(NegotiateMessage)
+        ALB->>App: Type 1 Message転送
+        App->>Browser: Type 2 Message<br/>(ChallengeMessage)
+        Browser->>Browser: パスワードハッシュで<br/>Challengeを暗号化
+        Browser->>ALB: Type 3 Message<br/>(AuthenticateMessage)
+        ALB->>App: Type 3 Message転送
+        App->>DC1: ユーザー認証要求<br/>(DOMAIN1\user1)
+        DC1->>App: 認証成功 + ユーザー情報
+        App->>Browser: 200 OK + ユーザー情報
+    end
+
+    rect rgba(255, 218, 185, 0.2)
+        Note over User,DC2: シナリオ2: DOMAIN2.LABユーザー認証<br/>(クロスドメイン)
+        User->>Browser: アプリケーションアクセス
+        Browser->>ALB: HTTPリクエスト
+        ALB->>App: HTTPリクエスト転送
+        App->>Browser: 401 WWW-Authenticate: NTLM
+        Browser->>ALB: Type 1 Message
+        ALB->>App: Type 1 Message転送
+        App->>Browser: Type 2 Message
+        Browser->>Browser: パスワードハッシュで<br/>Challengeを暗号化
+        Browser->>ALB: Type 3 Message
+        ALB->>App: Type 3 Message転送
+        App->>DC1: ユーザー認証要求<br/>(DOMAIN2\user2)
+        DC1->>DC2: 信頼関係経由で認証要求
+        DC2->>DC1: 認証成功 + ユーザー情報
+        DC1->>App: 認証成功 + ユーザー情報
+        App->>Browser: 200 OK + ユーザー情報
+    end
+```
+
+### 3.10.4 コンポーネント詳細
+
+| コンポーネント | インスタンスタイプ | OS | 用途 | 推定コスト/月 |
+|--------------|------------------|-----|------|-----------|
+| DC1 | t3.medium | Windows Server 2022 | DOMAIN1.LABドメインコントローラー | 約$30 |
+| DC2 | t3.medium | Windows Server 2022 | DOMAIN2.LABドメインコントローラー | 約$30 |
+| WIN1 | t3.small | Windows Server 2022 | DOMAIN1.LABテストクライアント | 約$15 |
+| WIN2 | t3.small | Windows Server 2022 | DOMAIN2.LABテストクライアント | 約$15 |
+| Linux App | t3.medium | Amazon Linux 2023 | アプリケーションサーバー<br/>(Docker + Spring Boot) | 約$30 |
+| ALB | - | - | Application Load Balancer | 約$20 |
+| ネットワーク | - | - | VPC、サブネット、IGW | 約$5 |
+| **合計** | - | - | - | **約$145/月** |
+
 ## 次の章へ
 
 - [第4章: クロスドメイン認証](./04_CROSS_DOMAIN.md) - クロスドメイン環境での認証課題と5つの解決策

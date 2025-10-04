@@ -330,6 +330,136 @@ kvno HTTP/linux-server.domain.lab@DOMAIN.LAB
 - **命名規則**: 一貫したSPN命名規則
 - **定期監査**: SPN設定の定期確認
 
+## 2.9 AWS環境でのシステム構成
+
+### 2.9.1 ネットワーク構成
+
+```
+AWS VPC (10.0.0.0/16)
+├── Subnet 10.0.10.0/24 (AZ-a)
+│   ├── DC1 (DOMAIN1.LAB) - 10.0.10.10
+│   └── WIN1 (クライアント) - 10.0.10.100
+├── Subnet 10.0.20.0/24 (AZ-c)
+│   ├── DC2 (DOMAIN2.LAB) - 10.0.20.10
+│   └── WIN2 (クライアント) - 10.0.20.100
+├── Subnet 10.0.30.0/24 (AZ-a)
+│   └── Linux App Server - 10.0.30.10
+├── Subnet 10.0.40.0/24 (AZ-c)
+│   └── (予備)
+└── Application Load Balancer
+    └── Target: Linux App Server:80
+```
+
+### 2.9.2 システム構成図
+
+```mermaid
+graph TB
+    subgraph "AWS VPC (10.0.0.0/16)"
+        subgraph "Subnet 10.0.10.0/24"
+            DC1[DC1: DOMAIN1.LAB<br/>ドメインコントローラー<br/>10.0.10.10<br/>Windows Server 2022]
+            WIN1[WIN1<br/>Windowsクライアント<br/>10.0.10.100<br/>ドメイン: DOMAIN1.LAB]
+        end
+
+        subgraph "Subnet 10.0.20.0/24"
+            DC2[DC2: DOMAIN2.LAB<br/>ドメインコントローラー<br/>10.0.20.10<br/>Windows Server 2022]
+            WIN2[WIN2<br/>Windowsクライアント<br/>10.0.20.100<br/>ドメイン: DOMAIN2.LAB]
+        end
+
+        subgraph "Subnet 10.0.30.0/24"
+            LINUX[Linuxアプリサーバー<br/>10.0.30.10<br/>Docker + Spring Boot<br/>Kerberos keytab + krb5.conf]
+        end
+
+        ALB[Application Load Balancer<br/>Port 80]
+    end
+
+    subgraph "インターネット"
+        IGW[Internet Gateway]
+        USERS[ユーザー<br/>WIN1/WIN2からアクセス]
+    end
+
+    DC1 <-->|"双方向信頼<br/>Kerberos"| DC2
+    WIN1 -->|"AD認証"| DC1
+    WIN2 -->|"AD認証"| DC2
+    LINUX -->|"Kerberos/SPNEGO<br/>keytab認証"| DC1
+    LINUX -->|"クロスレルム認証"| DC2
+
+    USERS -->|"HTTP"| IGW
+    IGW --> ALB
+    ALB -->|"Port 80"| LINUX
+
+    DC1 -.->|"RDP/管理"| IGW
+    DC2 -.->|"RDP/管理"| IGW
+    WIN1 -.->|"RDP/テスト"| IGW
+    WIN2 -.->|"RDP/テスト"| IGW
+
+    style DC1 fill:#4A90E2,color:#fff
+    style DC2 fill:#4A90E2,color:#fff
+    style WIN1 fill:#7ED321,color:#fff
+    style WIN2 fill:#7ED321,color:#fff
+    style LINUX fill:#F5A623,color:#fff
+    style ALB fill:#E94B3C,color:#fff
+    style IGW fill:#9013FE,color:#fff
+```
+
+### 2.9.3 Kerberos認証フロー
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー<br/>(WIN1/WIN2)
+    participant Browser as ブラウザ
+    participant ALB as ALB
+    participant App as Linuxアプリ<br/>(Spring Boot)
+    participant DC1 as DC1<br/>(DOMAIN1.LAB)
+    participant DC2 as DC2<br/>(DOMAIN2.LAB)
+
+    rect rgba(173, 216, 230, 0.2)
+        Note over User,DC1: シナリオ1: DOMAIN1.LABユーザー認証
+        User->>Browser: アプリケーションアクセス
+        Browser->>ALB: HTTPリクエスト
+        ALB->>App: HTTPリクエスト転送
+        App->>Browser: 401 WWW-Authenticate: Negotiate
+        Browser->>DC1: Kerberos TGTリクエスト
+        DC1->>Browser: TGT返却
+        Browser->>DC1: サービスチケットリクエスト<br/>(SPN: HTTP/alb-dns-name)
+        DC1->>Browser: サービスチケット返却
+        Browser->>ALB: SPNEGOトークン付きHTTPリクエスト
+        ALB->>App: SPNEGOトークン転送
+        App->>App: keytabでトークン検証
+        App->>Browser: 200 OK + ユーザー情報
+    end
+
+    rect rgba(255, 218, 185, 0.2)
+        Note over User,DC2: シナリオ2: DOMAIN2.LABユーザー認証<br/>(クロスドメイン)
+        User->>Browser: アプリケーションアクセス
+        Browser->>ALB: HTTPリクエスト
+        ALB->>App: HTTPリクエスト転送
+        App->>Browser: 401 WWW-Authenticate: Negotiate
+        Browser->>DC2: Kerberos TGTリクエスト
+        DC2->>Browser: TGT返却
+        Browser->>DC2: サービスチケットリクエスト<br/>(SPN: HTTP/alb-dns-name)
+        DC2->>DC1: クロスレルムTGSリクエスト<br/>(信頼関係経由)
+        DC1->>DC2: クロスレルムチケット返却
+        DC2->>Browser: サービスチケット返却
+        Browser->>ALB: SPNEGOトークン付きHTTPリクエスト
+        ALB->>App: SPNEGOトークン転送
+        App->>App: keytabでトークン検証
+        App->>Browser: 200 OK + ユーザー情報
+    end
+```
+
+### 2.9.4 コンポーネント詳細
+
+| コンポーネント | インスタンスタイプ | OS | 用途 | 推定コスト/月 |
+|--------------|------------------|-----|------|-----------|
+| DC1 | t3.medium | Windows Server 2022 | DOMAIN1.LABドメインコントローラー | 約$30 |
+| DC2 | t3.medium | Windows Server 2022 | DOMAIN2.LABドメインコントローラー | 約$30 |
+| WIN1 | t3.small | Windows Server 2022 | DOMAIN1.LABテストクライアント | 約$15 |
+| WIN2 | t3.small | Windows Server 2022 | DOMAIN2.LABテストクライアント | 約$15 |
+| Linux App | t3.medium | Amazon Linux 2023 | アプリケーションサーバー<br/>(Docker + Spring Boot) | 約$30 |
+| ALB | - | - | Application Load Balancer | 約$20 |
+| ネットワーク | - | - | VPC、サブネット、IGW | 約$5 |
+| **合計** | - | - | - | **約$145/月** |
+
 ## 次の章へ
 
 - [第3章: NTLM認証詳解](./03_NTLM.md) - NTLM認証の実装ガイド

@@ -38,6 +38,9 @@
         groups: docker
         append: yes
 
+    - name: Reset SSH connection to apply group changes
+      meta: reset_connection
+
     - name: Set hostname
       hostname:
         name: "{{ app_hostname }}"
@@ -133,18 +136,6 @@
         group: "{{ app_user }}"
         mode: '0644'
 
-    - name: Stop old winauth service if exists
-      systemd:
-        name: winauth
-        state: stopped
-      ignore_errors: yes
-
-    - name: Stop old nginx service if exists
-      systemd:
-        name: nginx
-        state: stopped
-      ignore_errors: yes
-
     - name: Stop all running Docker containers
       shell: docker stop $(docker ps -aq) || true
       ignore_errors: yes
@@ -153,12 +144,21 @@
       shell: docker rm $(docker ps -aq) || true
       ignore_errors: yes
 
-    - name: Build and start Docker containers
+    - name: Build Docker containers with verbose output
       shell: |
         cd {{ app_dir }}/source/kerberos
-        docker compose build
+        docker compose build --no-cache
+      become_user: "{{ app_user }}"
+      async: 1800
+      poll: 10
+      register: docker_build
+
+    - name: Start Docker containers
+      shell: |
+        cd {{ app_dir }}/source/kerberos
         docker compose up -d
       become_user: "{{ app_user }}"
+      when: docker_build is succeeded
 
 
 

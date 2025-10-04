@@ -8,10 +8,9 @@
   gather_facts: false
   vars:
     # Stack name to get ALB ARN
-    stack_name: "{{ lookup('env', 'STACK_NAME') | default('has-kerberos-test') }}"
-    prefix: "{{ lookup('env', 'PREFIX') | default('has') }}"
-    # SSL certificate ARN (will be provided when setting up HTTPS)
-    ssl_cert_arn: "{{ lookup('env', 'SSL_CERT_ARN') | default('') }}"
+    stack_name: "{{ lookup('env', 'STACK_NAME') }}"
+    env_prefix: "{{ lookup('env', 'ENV_PREFIX') }}"
+    owner: "{{ lookup('env', 'OWNER') }}"
 
   tasks:
     - name: Install packaging library first (required for pip module)
