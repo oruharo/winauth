@@ -14,7 +14,7 @@
 
   tasks:
     - name: Install packaging library first (required for pip module)
-      shell: "/usr/local/opt/python@3.13/bin/python3.13 -m pip install --break-system-packages packaging"
+      shell: "{{ ansible_playbook_python }} -m pip install --break-system-packages packaging"
       delegate_to: localhost
       ignore_errors: yes
 

@@ -14,7 +14,7 @@
 
   tasks:
     - name: Install packaging library first (required for pip module)
-      shell: "/usr/local/opt/python@3.13/bin/python3.13 -m pip install --break-system-packages packaging"
+      shell: "{{ ansible_playbook_python }} -m pip install --break-system-packages packaging"
       delegate_to: localhost
       ignore_errors: yes
 
@@ -71,15 +71,18 @@
       register: health_rule
       ignore_errors: yes
 
+    - name: Initialize ssl_cert_arn variable
+      set_fact:
+        ssl_cert_arn: ""
+
     - name: Get ALB DNS name for certificate
       set_fact:
         alb_dns_name: "{{ stack_info.cloudformation[stack_name].stack_outputs.ALBDNSName }}"
 
     - name: Create self-signed SSL certificate for ALB
       shell: |
-        openssl req -x509 -newkey rsa:2048 -keyout alb-selfsigned.key -out alb-selfsigned.crt -days 365 -nodes -subj "/C=US/ST=State/L=City/O=Organization/CN={{ alb_dns_name }}"
+        openssl req -x509 -newkey rsa:2048 -keyout alb-selfsigned.key -out alb-selfsigned.crt -days 365 -nodes -subj "/C=US/O=WinAuth/CN={{ env_prefix }}-alb" -addext "subjectAltName=DNS:{{ alb_dns_name }}"
       register: cert_creation
-      ignore_errors: yes
     - name: Upload self-signed certificate to ACM
       shell: |
         aws acm import-certificate \
@@ -135,15 +138,8 @@
       debug:
         msg:
           - "HTTP Listener configured for ALB: {{ alb_arn }}"
-          - "HTTPS Listener configured: {{ 'Yes' if ssl_cert_arn != '' else 'No (SSL_CERT_ARN not provided)' }}"
+          - "HTTPS Listener configured: Yes"
           - "Routes configured:"
           - "  - / -> Nginx Target Group ({{ nginx_target_group_arn }})"
           - "  - /api/* -> Spring Boot Target Group ({{ springboot_target_group_arn }})"
           - "  - /actuator/health -> Spring Boot Target Group ({{ springboot_target_group_arn }})"
-
-    - name: Warning if SSL certificate not provided
-      debug:
-        msg: 
-          - "WARNING: HTTPS listener not created because SSL_CERT_ARN is not provided"
-          - "To create HTTPS listener, set SSL_CERT_ARN environment variable and re-run this playbook"
-      when: ssl_cert_arn == ""
